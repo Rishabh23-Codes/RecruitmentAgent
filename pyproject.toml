@@ -1,0 +1,23 @@
+[project]
+name = "automate-job-searching-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "faiss-cpu>=1.13.1",
+    "langchain>=1.1.3",
+    "langchain-classic>=1.0.0",
+    "langchain-community>=0.4.1",
+    "langchain-groq>=1.1.1",
+    "langchain-huggingface>=1.2.0",
+    "langchain-text-splitters>=1.1.0",
+    "pypdf2>=3.0.1",
+    "python-docx>=1.2.0",
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+    "sentence-transformers>=5.2.0",
+    "spacy>=3.8.11",
+    "streamlit>=1.52.1",
+]
