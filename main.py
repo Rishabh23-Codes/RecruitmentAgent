@@ -6,6 +6,7 @@ import tempfile
 import PyPDF2
 import docx
 from datetime import datetime,timedelta
+from ui_utils import role_requirements
 
 # Create directories if they don't exist
 os.makedirs("agents", exist_ok=True)
@@ -127,16 +128,42 @@ with tabs[0]:
 
     with col1:
         # Resume upload section
-        st.subheader("Upload Resume")
-        st.markdown(f"""
-        <div style="background-color: {COLORS["panel_bg"]}; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-        <p style="margin-bottom: 10px;">Upload your resume in PDF, DOCX, or TXT format.</p>
-        <p>We'll analyze your resume and extract key information to help you find matching jobs.</p>
-        </div>
-        """,unsafe_allow_html=True)
+        st.subheader("📄 Upload Resume")
+        # st.markdown(f"""
+        # <div style="background-color: {COLORS["panel_bg"]};color: {COLORS["text_light"]}; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        # <p style="margin-bottom: 10px;">Upload your resume in PDF, DOCX, or TXT format.</p>
+        # <p>We'll analyze your resume and extract key information to help you find matching jobs.</p>
+        # </div>
+        # """,unsafe_allow_html=True)
+
+        st.markdown("""<div style="color:white; font-size:1rem;margin-bottom: 15px;">
+                    <p style="margin-bottom:1px">We'll analyze your resume and extract key information to help you find matching jobs</p>
+                    <p style="margin-top:1px"><i>suggested</i>: PDF, DOCX, or TXT format.</p></div>""",unsafe_allow_html=True)
 
         #Resume file uploader
         resume_file=st.file_uploader("Upload your Resume",type=["pdf","txt","docx"],key="resume_uploader")
+
+        ######################################################################################################################################
+        st.markdown("---")
+        new_col1,new_col2=st.columns([2,1])
+
+        with new_col1:
+            role=st.selectbox("Select the role you're applying for:",list(role_requirements.keys()))
+
+        with new_col2:
+            upload_jd=st.checkbox("Upload custom job description instead")
+        custom_jd=None
+        if upload_jd:
+            custom_jd_file=st.file_uploader("Upload job description (PDF or TXT)",type=["pdf","txt"])
+            if custom_jd_file:
+                st.success("✅Custom job description uploaded!")
+                custom_jd=custom_jd_file
+        if not upload_jd:
+            st.info(f"Required skills: {', '.join(role_requirements[role])}")
+            st.markdown(f"""<p style="font-size: 12px;">Cutoff Score for selection: <b>{75}/100</b></p>""",
+                        unsafe_allow_html=True)
+
+        ######################################################################################################################################
 
         # process uploaded resume
         if resume_file is not None:
@@ -232,8 +259,20 @@ with tabs[0]:
         """, unsafe_allow_html=True)
 
 
+
+
+
     # Display resume analysis results if available
     if "resume_data" in st.session_state and st.session_state.resume_data:
+
+
+    ########################################################################################################################################################################
+
+        st.markdown("---")
+        from ui_utils import resume_qa_section
+        resume_qa_section()
+
+    ########################################################################################################################################################################
         st.markdown("---")
 
         # Create tabs for different views of resume data

@@ -1,5 +1,59 @@
 import streamlit as st
 from config import COLORS
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import pandas as pd
+
+
+# Role requirement dictionary
+role_requirements={
+    "AI/ML Engineer":[
+        "Python","PyTorch","TensorFlow","Machine Learning","Deep Learning","MLOps",
+        "Scikit-Learn","NLP","Computer Vision","Reinforcement Learning","Hugging Face",
+        "Data Engineering","Feature Engineering","AutoML"
+    ],
+    "Frontend Engineer":[
+        "React","Vue","Angular","HTML5","CSS3","JavaScript","TypeScript","Next.js",
+        "Svelte","Bootstrap","Tailwind CSS","GraphQL","Redux",
+        "WebAssembly","Three.js","Performance Optimization"
+    ],
+    "Backend Engineer":[
+        "Python","Java","Node.js","REST APIs","Cloud services","Kubernetes",
+        "Docker","GraphQL","Microservices","gRPC","Spring Boot","Flask",
+        "FastAPI","SQL & NoSQL Databases","Redis","RabbitMQ","CI/CD","Django"
+    ],
+    "Data Engineer":[
+        "Python","SQL","Apache Spark","Hadoop","Kafka","ETL Pipelines","Airflow",
+        "BigQuery","Redshift","Data Warehousing","Snowflake","Azure Data Factory",
+        "GCP","AWS GLue","DBT"
+    ],
+    "DevOps Engineer":[
+        "Linux Administration","Docker","Kubernetes","Helm","Terraform","Ansible",
+        "CI/CD Pipelines","GitHub Actions","GitLab CI","Jenkins",
+        "AWS","GCP","Azure","Monitoring & Logging",
+        "Prometheus","Grafana","ELK Stack","SRE Principles","Networking"
+    ],
+    "Full Stack Engineer":[
+        "JavaScript","TypeScript","React","Next.js","Vue","Node.js","Express",
+        "Python","Django","Flask","FastAPI",
+        "SQL & NoSQL Databases","GraphQL","REST APIs",
+        "HTML5","CSS3","Tailwind CSS","Docker","CI/CD",
+        "Microservices","Authentication & Authorization"
+    ],
+    "Product Manager":[
+        "Product Strategy","Roadmapping","User Research","Agile Methodologies",
+        "Scrum","Data Analysis","A/B Testing","Market Research",
+        "UI/UX Understanding","Stakeholder Management","OKRs",
+        "Product Analytics Tools","Competitive Analysis","Prioritization Frameworks"
+    ],
+    "Data Scientist":[
+        "Python","R","Machine Learning","Deep Learning","Statistics","Probability",
+        "Pandas","NumPy","Scikit-Learn","TensorFlow","PyTorch",
+        "Data Visualization","Matplotlib","Seaborn","Plotly",
+        "SQL","Feature Engineering","Model Evaluation",
+        "Big Data Tools (Spark/Hadoop)","NLP","Time Series Analysis"
+    ]
+}
 
 def display_resume_analysis_summary(resume_data):
     """Display a summary of the resume analysis with improved visibility.
@@ -82,7 +136,7 @@ def display_resume_analysis_summary(resume_data):
         if improvements:
             for improvement in improvements:
                 st.markdown(
-                    f"""<div style="background-color: #C62828; color: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; font-weight: 500;">⚠️{improvement}</div>""",
+                    f"""<div style="background-color: #FA5C5C; color: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; font-weight: 500;">⚠️{improvement}</div>""",
                     unsafe_allow_html=True
                 )
         else:
@@ -90,6 +144,114 @@ def display_resume_analysis_summary(resume_data):
                 """<div style="background-color: #2E7D32; color: white; padding: 12px; border-radius: 6px;">No obvious improvement areas identified</div>""",
                 unsafe_allow_html=True
             )
+    
+########################################################################################################################################################################################################
+    
+    st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
+    pie_col1,pie_col2=st.columns([1,2])
+
+    selected=True
+    with pie_col1:
+        st.metric("overall Score",f"{85}/100")
+        fig=create_score_pie_chart(85)
+        st.pyplot(fig)
+    with pie_col2:
+        st.markdown("""
+            <div style="
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                height: 250px;  /* match pie chart height */
+                text-align: center;
+            ">
+            """, unsafe_allow_html=True)
+        if selected:
+            st.markdown("<h2 style='color:#4CAF50; '>✅ Congratulations! You have been shortlisted.</h2>",unsafe_allow_html=True)
+        else:
+            st.markdown("<h2 style='color:#d32f2f;'>❌ Unfortunately, You were not selected.</h2>",unsafe_allow_html=True)
+        st.write("Candidate evaluated based on explicit resume content using semantic similarity and clear numeric scoring.")
+
+
+
+
+########################################################################################################################################################################################################
+
+
+
+########################################################################################################################################################################################################
+def create_score_pie_chart(score):
+    """Create a professional pie chart for the score visualization"""
+    fig,ax=plt.subplots(figsize=(4,4),facecolor='#111111')
+    
+    # Choose color based on score
+    if score >= 75:
+        score_color = "#32A536"   # green
+    elif score >= 50:
+        score_color = '#FF9800'   # orange
+    else:
+        score_color = '#d32f2f'   # red
+    # Data
+    sizes=[score,100-score]
+    labels=['',''] #we'll use annotation instead
+    colors=[score_color,'#333333']
+    explode=(0.05,0) # explode the 1st size (score)
+
+    # Plot
+    wedges,texts=ax.pie(
+        sizes,
+        labels=labels,
+        colors=colors,
+        explode=explode,
+        startangle=90,
+        wedgeprops={'width':0.5,'edgecolor':'black','linewidth':1}
+    )
+
+    # Draw a circle in the center to make it a donut chart
+    centre_circle=patches.Circle((0,0),radius=0.25,facecolor='#111111')
+    ax.add_artist(centre_circle)
+
+    # Equal aspect ratio ensures that pie is drawn as a circle
+    ax.set_aspect('equal')
+
+    # Add score text in the center
+    ax.text(0,0,f"{score}%",
+            ha='center',va='center',
+            fontsize=24,fontweight='bold',
+            color='white')
+    # Add pass/fail indicator
+    status="PASS" if score>=75 else "FAIL"
+    status_color="#4CAF50" if score >=75 else "#d32f2f"
+    ax.text(0,-0.15,status,
+            ha='center',va='center',
+            fontsize=14,fontweight='bold',
+            color=status_color)
+    # Set the background color
+    ax.set_facecolor('#111111')
+
+    return fig
+
+
+
+def resume_qa_section():
+    st.markdown('<div>',unsafe_allow_html=True)
+
+    st.subheader("🔍 Resume Q&A")
+    user_question=st.text_input("Enter your question about the resume:",
+                                placeholder="e.g  What are the projects in this Resume")
+    
+    if user_question:
+        with st.spinner("Searching resume and generating response..."):
+            response="whats up"
+
+            # st.markdown('<div style="background-color: #111122; padding: 15px;' \
+            # 'border-radius: 5px; border-left: 5px solid #d32f2f;">',
+            # unsafe_allow_html=True)
+            with st.chat_message("assistant",avatar="https://imgs.search.brave.com/1fads3PSU9YRNMwQ9oe2LXbnJatTdTBFIxFb_IViw6g/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRp/YS5pc3RvY2twaG90/by5jb20vaWQvMTQ0/NTczMDg4Ny92ZWN0/b3IvY2hhdGJvdC1o/ZWFkLWluLXNwZWVj/aC1idWJibGUtdmVj/dG9yLWljb24uanBn/P3M9NjEyeDYxMiZ3/PTAmaz0yMCZjPTBO/Vkcyc2JTeE5ObzNt/R2ZDQ21HVVNxX0dD/MVVUdlB5ZU8xT25O/clkxM1U9"):
+                st.markdown("<p>Bali is predominantly a Hindu country. Bali is known for its elaborate, traditional dancing. The dancing is inspired by its Hindi beliefs. Most of the dancing portrays tales of good versus evil. To watch the dancing is a breathtaking experience. Lombok has some impressive points of interest – the majestic Gunung Rinjani is an active volcano. It is the second highest peak in Indonesia. Art is a Balinese passion. Batik paintings and carved statues make popular souvenirs. Artists can be seen whittling and painting on the streets, particularly in Ubud. It is easy to appreciate each island as an attractive tourist destination. Majestic scenery; rich culture; white sands and warm, azure waters draw visitors like magnets every year. Snorkelling and diving around the nearby Gili Islands is magnificent. Marine fish, starfish, turtles and coral reef are present in abundance. Bali and Lombok are part of the Indonesian archipelago. Bali has some spectacular temples. The most significant is the Mother Temple, Besakih. The inhabitants of Lombok are mostly Muslim with a Hindu minority. Lombok remains the most understated of the two islands. Lombok has several temples worthy of a visit, though they are less prolific. Bali and Lombok are neighbouring islands.</p>",unsafe_allow_html=True)
+            st.markdown('</div>',unsafe_allow_html=True)
+
+########################################################################################################################################################################################################
+
 
 def clean_and_organize_experience(experience_items):
     """Helper function to organize experience into categories."""
@@ -683,6 +845,12 @@ def apply_styling():
             box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
             transform: translateY(-2px) !important;
         }}
+
+        /* Checkbox label text */
+        div[data-testid="stCheckbox"] label {{
+            font-size: 8px !important;
+        }}
+
     </style>
     """, unsafe_allow_html=True)
         
