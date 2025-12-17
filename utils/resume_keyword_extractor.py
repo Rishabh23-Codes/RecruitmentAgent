@@ -7,6 +7,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEmbeddings
 from config import LLM_MODEL,GROQ_API_KEY
+from langchain_ollama.chat_models import ChatOllama
 
 
 class ResumeContextExtractor:
@@ -16,7 +17,8 @@ class ResumeContextExtractor:
     """
 
     def __init__(self):
-        self.llm = ChatGroq(model=LLM_MODEL,api_key=GROQ_API_KEY)
+        # self.llm = ChatGroq(model=LLM_MODEL,api_key=GROQ_API_KEY)
+        self.llm=ChatOllama(model=LLM_MODEL,temperature=0)
         self.embeddings =HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
 
         self.prompt = ChatPromptTemplate.from_template(

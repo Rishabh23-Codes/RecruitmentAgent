@@ -2,6 +2,7 @@ from langchain_groq import ChatGroq
 from utils.job_scraper import JobScrapper
 from utils.serp_api_searcher import SerpApiSearcher
 from config import GROQ_API_KEY,LLM_MODEL,JOB_PLATFORMS
+from langchain_ollama.chat_models import ChatOllama
 
 class JobSearchAgent:
     """Agent for searching and matching jobs."""
@@ -74,7 +75,8 @@ class JobSearchAgent:
         
         try:
             #Initialize groq client
-            client=ChatGroq(api_key=self.api_key,model=self.model)
+            # client=ChatGroq(api_key=self.api_key,model=self.model)
+            client=ChatOllama(model=LLM_MODEL,temperature=0)
 
             #Extract relevant data
             skills=resume_data.get("skills",[])
@@ -85,6 +87,7 @@ class JobSearchAgent:
             # Create a prompt for matching analysis
 
             prompt=f"""
+            You are strict prompt follower and do what only that prompt say,
             Analyze how well this resume matches the job description and provide a detailed match analysis.
             
             === RESUME DATA ===

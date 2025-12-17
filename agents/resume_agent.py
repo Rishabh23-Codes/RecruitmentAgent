@@ -1,5 +1,6 @@
 from langchain_groq import ChatGroq
 from config import GROQ_API_KEY,LLM_MODEL
+from langchain_ollama.chat_models import ChatOllama
 
 class ResumeAgent:
     """Agent for analyzing and improving resumes with detailed feedback."""
@@ -23,58 +24,56 @@ class ResumeAgent:
         
         try:
             # Initialize groq client
-            client=ChatGroq(model=self.model,api_key=self.api_key)
+            # client=ChatGroq(model=self.model,api_key=self.api_key)
+            client=ChatOllama(model=self.model,temperature=0.2)
 
             # Extract key data for analysis
-            skills=resume_data.get("skills",[])
+            skills=resume_data.get("resume_skills",[])
             education=resume_data.get("education",[])
             experience=resume_data.get("experience",[])
 
             # Create a detailed prompt
             prompt=f"""
-            Analyze this resume information and provide specific, actionable suggestions 
-            for improvement to make it more competitive in the job market.
-            
-            === RESUME DATA ===
-            
-            Skills: {", ".join(skills)}
-            
-            Education: 
-            {chr(10).join([f"- {edu}" for edu in education])}
-            
-            Experience:
-            {chr(10).join([f"- {exp}" for exp in experience])}
-            
-            === ANALYSIS INSTRUCTIONS ===
-            
-            Provide a comprehensive analysis with the following clearly labeled sections:
-            
-            1. OVERALL ASSESSMENT
-            • Strengths: Identify 3-5 strong aspects of the resume
-            • Weaknesses: Point out 2-4 areas that need improvement
-            • Industry fit: Based on the skills and experience, suggest 2-3 suitable industry sectors or job roles
-            
-            2. CONTENT IMPROVEMENTS
-            • Achievements: Suggest how to better quantify results (provide 2-3 examples of how to reword vague statements)
-            • Skills presentation: Advise on better organization or presentation of technical skills
-            • Missing skills: Identify any critical skills that seem to be missing based on the experience described
-            
-            3. FORMAT SUGGESTIONS
-            • Structure: Suggest optimal resume sections and ordering
-            • Length: Advise on appropriate length based on experience level
-            • Readability: Provide tips to improve scannability
-            
-            4. ATS OPTIMIZATION
-            • Keywords: Suggest 5-7 additional keywords to include for better ATS matching
-            • Formatting pitfalls: Identify any elements that could harm ATS parsing
-            • File format recommendations
-            
-            Be extremely specific and actionable in your suggestions. Provide concrete examples where possible.
-            Focus on transformative improvements rather than minor tweaks.
+            You are analyser and analyse briefly.
+            Analyze this resume and provide actionable suggestions in a structured, bullet format.
+
+                === RESUME DATA ===
+                Skills: {", ".join(skills)}
+                Education:
+                {chr(200).join([f"- {edu}" for edu in education])}
+                Experience:
+                {chr(200).join([f"- {exp}" for exp in experience])}
+
+                === OUTPUT FORMAT ===
+
+                1. OVERALL ASSESSMENT
+                - 3 key strengths
+                - 2 areas for improvement
+                - 2 suitable industry sectors or job roles
+
+                2. CONTENT IMPROVEMENTS
+                - 2 ways to better quantify achievements
+                - 1 suggestion to improve skills presentation
+                - 1 missing critical skill
+
+                3. FORMAT SUGGESTIONS
+                - 1 structure improvement
+                - 1 length suggestion
+                - 1 readability tip
+
+                4. ATS OPTIMIZATION
+                - 3 additional keywords for ATS
+                - 1 formatting pitfall
+                - 1 file format recommendation
+
+                Provide concise, actionable points only. Use bullet format only(Don't use special characters like - > " * @ #... etc). Maximum 3 bullets per subsection where possible
+                give the points only in bullet format.
+
             """
 
             # Get analysis from groq
             response=client.invoke(prompt)
+            print("✅ analysis interface done")
 
             #Return the analysis
             return str(response.content).strip()
@@ -84,7 +83,7 @@ class ResumeAgent:
         
     def _generate_basic_analysis(self,resume_data):
         """Generate basic resume analysis when OpenAI is not available."""
-        skills=resume_data.get("skills",[])
+        skills=resume_data.get("resume_skills",[])
         education = resume_data.get("education", [])
         experience = resume_data.get("experience", [])
 
@@ -133,3 +132,47 @@ class ResumeAgent:
         analysis += "• Avoid tables, headers/footers, and images that can confuse ATS systems\n"
         
         return analysis
+    
+
+
+
+
+    # Analyze this resume information and provide specific, actionable suggestions 
+    #         for improvement to make it more competitive in the job market.
+            
+    #         === RESUME DATA ===
+            
+    #         Skills: {", ".join(skills[:8])}
+            
+    #         Education: 
+    #         {chr(10).join([f"- {edu}" for edu in education])}
+            
+    #         Experience:
+    #         {chr(10).join([f"- {exp}" for exp in experience])}
+            
+    #         === ANALYSIS INSTRUCTIONS ===
+            
+    #         Provide a comprehensive analysis with the following clearly labeled sections:
+            
+    #         1. OVERALL ASSESSMENT
+    #         • Strengths: Identify 3-5 strong aspects of the resume
+    #         • Weaknesses: Point out 2-4 areas that need improvement
+    #         • Industry fit: Based on the skills and experience, suggest 2-3 suitable industry sectors or job roles
+            
+    #         2. CONTENT IMPROVEMENTS
+    #         • Achievements: Suggest how to better quantify results (provide 2-3 examples of how to reword vague statements)
+    #         • Skills presentation: Advise on better organization or presentation of technical skills
+    #         • Missing skills: Identify any critical skills that seem to be missing based on the experience described
+            
+    #         3. FORMAT SUGGESTIONS
+    #         • Structure: Suggest optimal resume sections and ordering
+    #         • Length: Advise on appropriate length based on experience level
+    #         • Readability: Provide tips to improve scannability
+            
+    #         4. ATS OPTIMIZATION
+    #         • Keywords: Suggest 5-7 additional keywords to include for better ATS matching
+    #         • Formatting pitfalls: Identify any elements that could harm ATS parsing
+    #         • File format recommendations
+            
+    #         Be extremely specific and actionable in your suggestions. Provide concrete examples where possible.
+    #         Focus on transformative improvements rather than minor tweaks.

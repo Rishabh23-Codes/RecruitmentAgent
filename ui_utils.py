@@ -64,56 +64,159 @@ def display_resume_analysis_summary(resume_data):
         st.warning("Reasume data is not available.Please upload your resume.")
         return
     
-    #Extract skills and experience
-    skills=resume_data.get("skills",[])
-    experience=resume_data.get("experience",[])
+    ############################################################################################################################################################################################################
 
-    # Define technical categories
-    tech_categories={
-         "Programming": ["python", "java", "javascript", "c++", "ruby", "go"],
-        "Data Science": ["ml", "ai", "machine learning", "data science", "scikit", "numpy", "pandas"],
-        "Cloud & DevOps": ["aws", "azure", "gcp", "cloud", "ci/cd", "git", "docker"],
-        "Databases": ["sql", "mysql", "postgresql", "mongodb", "nosql"],
-        "Web & Mobile": ["react", "angular", "vue", "node", "android", "ios"],
-        "Other": []
-    }
+    overall_score=resume_data.get('overall_score',0)
+    selected=resume_data.get("selected",False)
+    detailed_weaknesses=resume_data.get('detailed_weaknesses',[])
 
-    # Categories skills
-    categorized_skills={cat: [] for cat in tech_categories}
-    for skill in skills:
-        skill_lower=skill.lower()
-        found=False
-        for category,keywords in tech_categories.items():
-            if any(keyword in skill_lower for keyword in keywords):
-                categorized_skills[category].append(skill)
-                found=True
-                break
-        if not found:
-            categorized_skills["Other"].append(skill)
+
+    ############################################################################################################################################################################################################
+    
+    # #Extract skills and experience
+    # skills=resume_data.get("resume_skill",[])
+    # experience=resume_data.get("experience",[])
+
+    # # Define technical categories
+    # tech_categories={
+    #      "Programming": ["python", "java", "javascript", "c++", "ruby", "go"],
+    #     "Data Science": ["ml", "ai", "machine learning", "data science", "scikit", "numpy", "pandas"],
+    #     "Cloud & DevOps": ["aws", "azure", "gcp", "cloud", "ci/cd", "git", "docker"],
+    #     "Databases": ["sql", "mysql", "postgresql", "mongodb", "nosql"],
+    #     "Web & Mobile": ["react", "angular", "vue", "node", "android", "ios"],
+    #     "Other": []
+    # }
+    tech_categories = {
+    "Programming": ["python", "java", "javascript", "typescript", "c", "c++", "c#", "go", "rust", "ruby", "php", "scala", "kotlin", "swift", "bash", "shell", "powershell"],
+    "Data Science": ["data science", "data analysis", "statistics", "probability", "numpy", "pandas", "scipy", "matplotlib", "seaborn", "power bi", "tableau", "excel"],
+    "Machine Learning & AI": ["machine learning", "deep learning", "artificial intelligence", "supervised learning", "unsupervised learning", "scikit-learn", "tensorflow", "keras", "pytorch", "nlp", "computer vision", "opencv", "recommendation systems", "time series"],
+    "LLM / GenAI / Agentic": ["large language models", "llm", "genai", "generative ai", "prompt engineering", "chain-of-thought", "rag", "retrieval augmented generation", "agentic ai", "autonomous agents", "langchain", "langgraph", "llamaindex", "openai api", "groq", "anthropic", "huggingface", "transformers", "vector database", "embeddings", "faiss", "pinecone", "weaviate", "chroma"],
+    "Cloud & DevOps": ["aws", "azure", "gcp", "cloud", "ec2", "s3", "lambda", "ecs", "eks", "docker", "kubernetes", "helm", "ci/cd", "github actions", "gitlab ci", "terraform", "ansible", "linux", "nginx"],
+    "Databases": ["sql", "mysql", "postgresql", "oracle", "mongodb", "dynamodb", "cassandra", "redis", "elasticsearch", "nosql"],
+    "Web & Mobile": ["html", "css", "javascript", "react", "next.js", "vue", "angular", "node.js", "express", "django", "flask", "fastapi", "spring boot", "android", "ios", "react native", "flutter"],
+    "Big Data & Streaming": ["hadoop", "spark", "pyspark", "kafka", "flink", "airflow", "databricks", "etl", "data pipelines"],
+    "MLOps & Data Engineering": ["mlops", "model deployment", "model monitoring", "feature engineering", "mlflow", "kubeflow", "data versioning", "dvc"],
+    "System Design & Architecture": ["system design", "software architecture", "microservices", "monolith", "distributed systems", "scalability", "load balancing", "high availability", "fault tolerance"],
+    "Testing & Quality": ["unit testing", "integration testing", "pytest", "junit", "selenium", "cypress", "playwright", "test automation"],
+    "Security": ["application security", "cybersecurity", "oauth", "jwt", "authentication", "authorization", "encryption", "ssl", "tls", "owasp"],
+    "Other": []
+}
+
+
+
+    # # Categories skills
+    # categorized_skills={cat: [] for cat in tech_categories}
+    # for skill in skills:
+    #     skill_lower=skill.lower()
+    #     found=False
+    #     for category,keywords in tech_categories.items():
+    #         if any(keyword in skill_lower for keyword in keywords):
+    #             categorized_skills[category].append(skill)
+    #             found=True
+    #             break
+    #     if not found:
+    #         categorized_skills["Other"].append(skill)
 
     # Create summary
-    st.subheader("Resume Analysis Summary")
+    st.subheader("📊 Resume Analysis Summary")
 
     # Srengths and areas to improve
     col1,col2=st.columns(2)
 
     with col1:
         st.markdown("""<h4 style="color: #1A237E; margin-bottom: 10px;">Strengths</h4>""",unsafe_allow_html=True)
-        strengths=[]
+        # strengths=[]
 
-        #Identify strengths based on skills and experience
-        if any(len(categorized_skills[cat])>0 for cat in ["Programming", "Data Science"]):
-            strengths.append("Strong Technical skills in programming and/or data science")
-        if any("aws" in skill.lower() or "cloud" in skill.lower() for skill in skills):
-            strengths.append("Cloud platform experience")
-        if any("ml" in skill.lower() or "ai" in skill.lower() for skill in skills):
-            strengths.append("Machine Learning knowledge")
+        # #Identify strengths based on skills and experience
+        # if any(len(categorized_skills[cat])>1 for cat in ["Programming", "Data Science", "Machine Learning & AI", "LLM / GenAI / Agentic", "Cloud & DevOps", "Databases", "Web & Mobile", "Big Data & Streaming", "MLOps & Data Engineering", "System Design & Architecture", "Testing & Quality", "Security", "Other"]) and len(categorized_skills)>=2:
+        #     strengths.append("Strong Technical skill ")
+        # if any(skill.lower() in categorized_skills["Cloud & DevOps"] for skill in skills):
+        #     strengths.append("Cloud platform experience")
+        # for category, keywords in tech_categories.items():
+        #     # Count how many skills from the resume match this category
+        #     matched_skills = [skill for skill in skills if skill.lower() in [k for k in keywords]]
+            
+        #     if len(matched_skills) >= 2:
+        #         strengths.append(f"{category} knowledge")
+
+        # # Count categories with meaningful depth
+        # non_empty_categories = [
+        #     cat for cat, vals in categorized_skills.items() if len(vals) >= 2
+        # ]
+
+        # if len(non_empty_categories) >= 2:
+        #     strengths.append("Strong technical skill set across multiple domains")
+
+        # # Cloud strength
+        # if len(categorized_skills["Cloud & DevOps"]) >= 2:
+        #     strengths.append("Cloud platform experience")
+
+        # # Category-based strengths (threshold = 2 skills)
+        # for category, keywords in tech_categories.items():
+        #     matched_skills = [
+        #         skill for skill in skills
+        #         if any(k in skill.lower() for k in keywords)
+        #     ]
+
+        #     if len(matched_skills) >= 2:
+        #         strengths.append(f"{category} knowledge")
+
+        skills=resume_data.get("resume_skills",[])
+        common_skills=resume_data.get("matching_skills",[])
+        skills_lower = [s.lower() for s in skills]  # normalize
+
+        ls = []
+
+        # 1️⃣ Strong technical skill across multiple domains (≥2 skills in ≥2 domains)
+        domain_counts = sum(
+            1 for category, keywords in tech_categories.items()
+            if len([s for s in skills_lower if any(k in s for k in keywords)]) >= 2
+        )
+        if domain_counts >= 3:
+            ls.append("Strong technical skill set across multiple domains")
+
+        if len(common_skills) >= 5:
+            ls.append(
+                "Your resume shows very strong alignment with the job description."
+            )
+
+        max_category = None
+        max_count = 0
+
+        for category, keywords in tech_categories.items():
+            matched = [s for s in skills_lower if any(k in s for k in keywords)]
+            count = len(matched)
+
+            if count > max_count:
+                max_count = count
+                max_category = category
+
+        # add only the top category if it meets minimum requirement
+        if max_category and max_count >= 2:
+            ls.append(f"Good {max_category} knowledge")
+
+        # Remove duplicates
+        lst= list(dict.fromkeys(ls))
+
+
         
-        # Display strengths with high-contrast styling
-        if strengths:
-            for strength in strengths:
+     ############################################################################################################################################################################################################
+        # if strengths:
+        #     for skill in strengths:
+        #         st.markdown(
+        #             f"""<div style="background-color: #01579B; color: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; font-weight: 500;">✅{skill} ({skill_scores.get(skill,"N/A")})/10</div>""",unsafe_allow_html=True)
+        # else:
+        #     st.markdown("""<div style="background-color: #546E7A; color: white; padding: 12px; border-radius: 6px;">Not enough information to determine strengths</div>""",
+        #                 unsafe_allow_html=True
+        #                 )
+
+
+    ############################################################################################################################################################################################################
+       #  Display strengths with high-contrast styling
+        if lst:
+            for i in lst:
                 st.markdown(
-                    f"""<div style="background-color: #01579B; color: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; font-weight: 500;">✅{strength}</div>""",
+                    f"""<div style="background-color: #01579B; color: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; font-weight: 500;">✅{i}</div>""",
                     unsafe_allow_html=True
                 )
         else:
@@ -124,13 +227,43 @@ def display_resume_analysis_summary(resume_data):
     with col2:
         st.markdown("""<h4 style="color: #B71C1C; margin-bottom: 10px;">Areas to Improve</h4>""",unsafe_allow_html=True)
         improvements=[]
-        #Identify improvement areas
-        if not any("git" in skill.lower() for skill in skills):
+        # #Identify improvement areas
+        # if not any("git" in skill.lower() for skill in skills):
+        #     improvements.append(" Version control experience (Git)")
+        # if not any(skill.lower() in categorized_skills["Databases"] for skill in skills):
+        #     improvements.append(" Database knowledge")
+        # if not any(skill.lower() in categorized_skills["Cloud & DevOps"] for skill in skills):
+        #     improvements.append(" Cloud platform experience")
+        skills_lower = [s.lower() for s in skills]  # normalize
+        improvements = []
+
+        # 1️⃣ Version control
+        if not any("git" in s for s in skills_lower):
             improvements.append("Version control experience (Git)")
-        if not any(db in "".join(skills).lower() for db in ["sql","database"]):
+
+        # 2️⃣ Databases
+        if not any(any(k in s for k in tech_categories["Databases"]) for s in skills_lower):
             improvements.append("Database knowledge")
-        if not any(cloud in "".join(skills).lower() for cloud in ["aws","azure","gcp","cloud"]):
+
+        # 3️⃣ Cloud & DevOps
+        if not any(any(k in s for k in tech_categories["Cloud & DevOps"]) for s in skills_lower):
             improvements.append("Cloud platform experience")
+    ############################################################################################################################################################################################################
+        # missing_skills=resume_data.get("missing_skills",[])
+        # if missing_skills:
+        #     for skill in missing_skills:
+        #         st.markdown(
+        #             f"""<div style="background-color: #FA5C5C; color: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; font-weight: 500;">⚠️{skill} ({skill_scores.get(skill,"N/A")}/10)</div>""",
+        #             unsafe_allow_html=True
+        #         )
+        # else:
+        #     st.markdown(
+        #         """<div style="background-color: #2E7D32; color: white; padding: 12px; border-radius: 6px;">No obvious improvement areas identified</div>""",
+        #         unsafe_allow_html=True
+        #     )
+
+
+    ############################################################################################################################################################################################################
 
         # Display improvement area with high-contrast styling
         if improvements:
@@ -150,10 +283,9 @@ def display_resume_analysis_summary(resume_data):
     st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
     pie_col1,pie_col2=st.columns([1,2])
 
-    selected=True
     with pie_col1:
-        st.metric("overall Score",f"{85}/100")
-        fig=create_score_pie_chart(85)
+        st.metric("overall Score",f"{overall_score}/100")
+        fig=create_score_pie_chart(overall_score)
         st.pyplot(fig)
     with pie_col2:
         st.markdown("""
@@ -171,6 +303,34 @@ def display_resume_analysis_summary(resume_data):
             st.markdown("<h2 style='color:#d32f2f;'>❌ Unfortunately, You were not selected.</h2>",unsafe_allow_html=True)
         st.write("Candidate evaluated based on explicit resume content using semantic similarity and clear numeric scoring.")
 
+
+    #Detailed weaknesses section
+
+    if detailed_weaknesses:
+        st.markdown('<hr>',unsafe_allow_html=True)
+        st.subheader("📁 Detailed Weakness Analysis")
+
+        for weakness in detailed_weaknesses:
+            skill_name=weakness.get('skill','')
+
+            with st.expander(f"{skill_name}"):
+                # Close detail display
+                detail=weakness.get('detail','No specific details provided.')
+                #Clean JSON formatting if it appears in the text
+                if detail.startswith('```json') or '{' in detail:
+                    detail="The resume lacks examples of this skill."
+                st.markdown(f'<div class="weakness-detail"><strong>Issue:</strong> {detail}</div>',unsafe_allow_html=True)
+
+                # Display improvement suggestions if available
+                if 'suggestions' in weakness and weakness['suggestions']:
+                    st.markdown("<strong>How to improve:</strong>",unsafe_allow_html=True)
+                    for i,suggestion in enumerate(weakness['suggestions']):
+                        st.markdown(f'<div class="solution-detail">{i+1}.{suggestion}</div>',unsafe_allow_html=True)
+
+                # Display example if available
+                if 'example' in weakness and weakness['example']:
+                    st.markdown("<strong>Example addition:</strong>",unsafe_allow_html=True)
+                    st.markdown(f'<div class="example-detail">{weakness["example"]},</div>',unsafe_allow_html=True)
 
 
 
@@ -232,23 +392,23 @@ def create_score_pie_chart(score):
 
 
 
-def resume_qa_section():
+def resume_qa_section(ask_question_func=None):
     st.markdown('<div>',unsafe_allow_html=True)
 
     st.subheader("🔍 Resume Q&A")
     user_question=st.text_input("Enter your question about the resume:",
                                 placeholder="e.g  What are the projects in this Resume")
     
-    if user_question:
-        with st.spinner("Searching resume and generating response..."):
-            response="whats up"
+    if user_question and ask_question_func:
+    
+        response=ask_question_func(user_question)
 
-            # st.markdown('<div style="background-color: #111122; padding: 15px;' \
-            # 'border-radius: 5px; border-left: 5px solid #d32f2f;">',
-            # unsafe_allow_html=True)
-            with st.chat_message("assistant",avatar="https://imgs.search.brave.com/1fads3PSU9YRNMwQ9oe2LXbnJatTdTBFIxFb_IViw6g/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRp/YS5pc3RvY2twaG90/by5jb20vaWQvMTQ0/NTczMDg4Ny92ZWN0/b3IvY2hhdGJvdC1o/ZWFkLWluLXNwZWVj/aC1idWJibGUtdmVj/dG9yLWljb24uanBn/P3M9NjEyeDYxMiZ3/PTAmaz0yMCZjPTBO/Vkcyc2JTeE5ObzNt/R2ZDQ21HVVNxX0dD/MVVUdlB5ZU8xT25O/clkxM1U9"):
-                st.markdown("<p>Bali is predominantly a Hindu country. Bali is known for its elaborate, traditional dancing. The dancing is inspired by its Hindi beliefs. Most of the dancing portrays tales of good versus evil. To watch the dancing is a breathtaking experience. Lombok has some impressive points of interest – the majestic Gunung Rinjani is an active volcano. It is the second highest peak in Indonesia. Art is a Balinese passion. Batik paintings and carved statues make popular souvenirs. Artists can be seen whittling and painting on the streets, particularly in Ubud. It is easy to appreciate each island as an attractive tourist destination. Majestic scenery; rich culture; white sands and warm, azure waters draw visitors like magnets every year. Snorkelling and diving around the nearby Gili Islands is magnificent. Marine fish, starfish, turtles and coral reef are present in abundance. Bali and Lombok are part of the Indonesian archipelago. Bali has some spectacular temples. The most significant is the Mother Temple, Besakih. The inhabitants of Lombok are mostly Muslim with a Hindu minority. Lombok remains the most understated of the two islands. Lombok has several temples worthy of a visit, though they are less prolific. Bali and Lombok are neighbouring islands.</p>",unsafe_allow_html=True)
-            st.markdown('</div>',unsafe_allow_html=True)
+        # st.markdown('<div style="background-color: #111122; padding: 15px;' \
+        # 'border-radius: 5px; border-left: 5px solid #d32f2f;">',
+        # unsafe_allow_html=True)
+        with st.chat_message("assistant",avatar="https://imgs.search.brave.com/1fads3PSU9YRNMwQ9oe2LXbnJatTdTBFIxFb_IViw6g/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRp/YS5pc3RvY2twaG90/by5jb20vaWQvMTQ0/NTczMDg4Ny92ZWN0/b3IvY2hhdGJvdC1o/ZWFkLWluLXNwZWVj/aC1idWJibGUtdmVj/dG9yLWljb24uanBn/P3M9NjEyeDYxMiZ3/PTAmaz0yMCZjPTBO/Vkcyc2JTeE5ObzNt/R2ZDQ21HVVNxX0dD/MVVUdlB5ZU8xT25O/clkxM1U9"):
+            st.markdown(f"<p>{response}</p>",unsafe_allow_html=True)
+        st.markdown('</div>',unsafe_allow_html=True)
 
 ########################################################################################################################################################################################################
 
@@ -258,25 +418,43 @@ def clean_and_organize_experience(experience_items):
     categories={
         "Programming Experience": [],
         "Machine Learning & AI": [],
-        "Cloud Computing": [],
-        "Data Analysis": [],
-        "Companies & Roles": []
+        "Cloud & Infrastructure": [],
+        "Data & Analysis": [],
+        "Professional Experience": []
     }
+
+    # # Simple keyword-based categorization
+    # for item in experience_items:
+    #     item_lower=item.lower()
+    #     if any(kw in item_lower for kw in ["program", "develop", "code", "software","python","c++"]):
+    #         categories["Programming Experience"].append(item)
+    #     elif any(kw in item_lower for kw in ["machine", "learning", "ai", "neural", "model"]):
+    #         categories["Machine Learning & AI"].append(item)
+    #     elif any(kw in item_lower for kw in ["cloud", "aws", "azure", "gcp"]):
+    #         categories["Cloud Computing"].append(item)
+    #     elif any(kw in item_lower for kw in ["data", "analytics", "analysis", "statistics"]):
+    #         categories["Data Analysis"].append(item)
+    #     else:
+    #         categories["Other"].append(item)
+    # return categories
+
 
     # Simple keyword-based categorization
     for item in experience_items:
         item_lower=item.lower()
-        if any(kw in item_lower for kw in ["program", "develop", "code", "software"]):
+        if any(kw in item_lower for kw in ["developed","implemented","engineered","designed","built","software","application","app","backend","frontend","api","rest","microservices","python","py","java","c++","cpp","c#","javascript","js","typescript","ts","framework","library","debugged","optimized","refactored","oop","dsa"]):
             categories["Programming Experience"].append(item)
-        elif any(kw in item_lower for kw in ["machine", "learning", "ai", "neural", "model"]):
+        elif any(kw in item_lower for kw in ["machine learning","ml","deep learning","dl","artificial intelligence","ai","model","models","training","inference","prediction","nlp","cv","computer vision","classification","regression","clustering","tensorflow","tf","pytorch","torch","scikit-learn","sklearn","llm","rag","genai","transformer","embeddings"]):
             categories["Machine Learning & AI"].append(item)
-        elif any(kw in item_lower for kw in ["cloud", "aws", "azure", "gcp"]):
-            categories["Cloud Computing"].append(item)
-        elif any(kw in item_lower for kw in ["data", "analytics", "analysis", "statistics"]):
-            categories["Data Analysis"].append(item)
-        else:
-            categories["Companies & Roles"].append(item)
+        elif any(kw in item_lower for kw in ["cloud","aws","amazon web services","azure","gcp","google cloud","deployment","infra","infrastructure","server","docker","kubernetes","k8s","container","ci/cd","devops","terraform","linux","scalability","load balancing"]):
+            categories["Cloud & Infrastructure"].append(item)
+        elif any(kw in item_lower for kw in ["data analysis","data processing","analytics","eda","sql","nosql","dataset","datasets","dashboard","dashboards","reporting","bi","power bi","tableau","pandas","numpy","statistics","stats","visualization","etl","pipeline","pipelines"]):
+            categories["Data & Analysis"].append(item)
+        elif any(kw in item_lower for kw in ["intern","internship","project","projects","capstone","research","collaboration","team","teamwork","responsible for","worked on","contributed to","experience","role","roles","assignment","freelance","contract"]):
+            categories["Professional Experience"].append(item)
     return categories
+
+
 
 def display_extracted_information(resume_data):
     """Display extracted resume information with better visibility.
@@ -325,7 +503,7 @@ def display_extracted_information(resume_data):
     with info_col2:
         # Display skills with high-contrast horizontal layout
         st.markdown("""<h4 style="color: #333; margin-bottom: 10px;">🛠️ Skills</h4>""",unsafe_allow_html=True)
-        skills=resume_data.get("skills",[])
+        skills=resume_data.get("resume_skills",[])
 
         if skills:
             # Create a flex container for horizontal layout
@@ -849,6 +1027,33 @@ def apply_styling():
         /* Checkbox label text */
         div[data-testid="stCheckbox"] label {{
             font-size: 8px !important;
+        }}
+
+        /* Weakness detail styling */
+        .weakness-detail {{
+            background-color: #330000;
+            padding: 10px 15px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 3px solid #ff6666;
+        }}
+
+        /* Solution styling */
+        .solution-detail {{
+            background-color: #003300;
+            padding: 10px 15px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 3px solid #66ff66;
+        }}
+
+        /* Example detail styling */
+        .example-detail {{
+            background-color: #000033;
+            padding: 10px 15px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 3px solid #6666ff;
         }}
 
     </style>

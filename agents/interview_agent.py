@@ -1,5 +1,6 @@
 from langchain_groq import ChatGroq
 from config import GROQ_API_KEY,LLM_MODEL
+from langchain_ollama.chat_models import ChatOllama
 
 
 class InterviewAgent:
@@ -27,7 +28,8 @@ class InterviewAgent:
         
         try:
             # Initialize groq client
-            client=ChatGroq(model=self.model,api_key=self.api_key)
+            # client=ChatGroq(model=self.model,api_key=self.api_key)
+            client=ChatOllama(model=LLM_MODEL,temperature=0)
 
             # Extract job details
             job_title = job_data.get('title', 'Unknown Position')
@@ -44,6 +46,7 @@ class InterviewAgent:
 
             # Create a detailed prompt
             prompt=f"""
+            You are strict prompt follower and do what only that prompt say,
             Generate {question_count} interview questions for the following job:
             
             Job Title: {job_title}

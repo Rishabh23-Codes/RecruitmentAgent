@@ -8,7 +8,9 @@ GROQ_API_KEY=os.getenv("GROQ_API_KEY")
 SERPAPI_API_KEY=os.getenv("SERPAPI_API_KEY")
 
 # Model settings
-LLM_MODEL="llama-3.1-8b-instant"
+# LLM_MODEL="llama-3.1-8b-instant"
+# LLM_MODEL="meta-llama/llama-guard-4-12b"
+LLM_MODEL="qwen3:4b-instruct"
 
 # Job search settings
 DEFAULT_JOB_COUNT=5
@@ -24,6 +26,8 @@ COLORS={
     "sixth":"#0B4007",
     "seventh":"#6C5ACB",
     "eighth":"#144D76",
+    "nineth":"#950909",
+    "tenth":"#033c84",
 
     # Accent colors
     "accent": "#F17300", # Orange for highlighting

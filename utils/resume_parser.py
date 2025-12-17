@@ -9,6 +9,7 @@ from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_groq import ChatGroq
 from config import GROQ_API_KEY,LLM_MODEL
+from langchain_ollama.chat_models import ChatOllama
 
 class ResumeParser:
     """Enhanced tool for parsing resume files and extracting structured information."""
@@ -18,7 +19,8 @@ class ResumeParser:
         self.use_rag=False
         try:
             self.embeddings=HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
-            self.llm=ChatGroq(model=LLM_MODEL,api_key=GROQ_API_KEY)
+            # self.llm=ChatGroq(model=LLM_MODEL,api_key=GROQ_API_KEY)
+            self.llm=ChatOllama(model=LLM_MODEL,temperature=0)
             self.use_rag=True
         except Exception as e:
             print(f"Error: {e}")

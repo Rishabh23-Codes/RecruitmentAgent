@@ -10,9 +10,12 @@ import tempfile
 import os
 import json
 import time
-from config import GROQ_API_KEY
+from config import GROQ_API_KEY,LLM_MODEL
+import docx
+from docling.document_converter import DocumentConverter
+from langchain_ollama.chat_models import ChatOllama
 
-def safe_llm_invoke(llm, prompt, max_retries=5):
+def safe_llm_invoke(llm, prompt, max_retries=3):
     for attempt in range(max_retries):
         try:
             return llm.invoke(prompt)
@@ -26,9 +29,9 @@ def safe_llm_invoke(llm, prompt, max_retries=5):
 
 
 class ResumeAnalysisAgent:
-    def __init__(self,api_key,cutoff_score=75):
-        self.api_key=api_key
-        self.cutoff_score=cutoff_score
+    def __init__(self):
+        self.api_key=GROQ_API_KEY
+        self.cutoff_score=75
         self.resume_text=None
         self.rag_vectorstore=None
         self.analysis_result=None
@@ -37,26 +40,70 @@ class ResumeAnalysisAgent:
         self.resume_weaknesses=[]
         self.resume_strengths=[]
         self.improvement_suggestions={}
-        self.llm = ChatGroq(model="llama-3.1-8b-instant", api_key=GROQ_API_KEY)
+        self.resume_skills=[]
+        self.education=[]
+        self.experience=[]
+        self.contact_info={"email":"","phone":""}
+        # self.llm = ChatGroq(model=LLM_MODEL, api_key=GROQ_API_KEY)
+        self.llm=ChatOllama(model=LLM_MODEL,temperature=0)
 
 
-    def extract_text_from_pdf(self,pdf_file):
-        """Extract text from a PDF file"""
+    # def extract_text_from_pdf(self,pdf_file):
+    #     """Extract text from a PDF file"""
+    #     try:
+    #         if hasattr(pdf_file,'getvalue'):
+    #             pdf_data=pdf_file.getvalue()
+    #             pdf_file_like=io.BytesIO(pdf_data)
+    #             reader=PyPDF2.PdfReader(pdf_file_like)
+    #         else:
+    #             reader=PyPDF2.PdfReader(pdf_file)
+    #         text=""
+    #         for page in reader.pages:
+    #             text+=page.extract_text()
+
+    #         return text
+    #     except Exception as e:
+    #         print(f"Error extracting text from PDF: {e}")
+    #         return ""
+    def extract_text_from_pdf(self, pdf_file):
+        """Extract text from a PDF file using Docling"""
         try:
-            if hasattr(pdf_file,'getvalue'):
-                pdf_data=pdf_file.getvalue()
-                pdf_file_like=io.BytesIO(pdf_data)
-                reader=PyPDF2.PdfReader(pdf_file_like)
-            else:
-                reader=PyPDF2.PdfReader(pdf_file)
-            text=""
-            for page in reader.pages:
-                text+=page.extract_text()
+            converter = DocumentConverter()
 
-            return text
+            
+            # Create a temporary file
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
+                # Write the PDF content to the temp file
+                if hasattr(pdf_file, "getvalue"):
+                    temp_file.write(pdf_file.getvalue())
+                else:
+                    # In case pdf_file is already bytes
+                    temp_file.write(pdf_file)
+                temp_path = temp_file.name
+            
+            # Convert the PDF to text
+            result = converter.convert(temp_path).document
+            response=result.export_to_text()
+            return response
+
         except Exception as e:
-            print(f"Error extracting text from PDF: {e}")
+            print(f"Error extracting text from PDF with Docling: {e}")
             return ""
+        
+    def extract_text_from_docx(self,docx_file):
+        """Extract text from a docx file"""
+        try:
+            if hasattr(docx_file, "getvalue"):
+                file_stream = io.BytesIO(docx_file.getvalue())
+                doc = docx.Document(file_stream)
+            else:
+                doc = docx.Document(docx_file)
+            extracted_text = "\n".join([p.text for p in doc.paragraphs])
+            return extracted_text
+        except Exception as e:
+            print(f"Error extracting text from docx file: {e}")
+            return ""
+
         
 
     def extract_text_from_txt(self,txt_file):
@@ -71,6 +118,8 @@ class ResumeAnalysisAgent:
             print(f"Error extracting text from text file: {e}")
             return ""
         
+
+        
     def extract_text_from_file(self,file):
         """Extract text from a file (PDF or TXT)"""
         if hasattr(file,'name'):
@@ -82,6 +131,8 @@ class ResumeAnalysisAgent:
             return self.extract_text_from_pdf(file)
         elif file_extension=='txt':
             return self.extract_text_from_txt(file)
+        elif file_extension=='docx':
+            return self.extract_text_from_docx(file)
         else:
             print(f"Unsupported file extension: {file_extension}")
             return "" 
@@ -120,6 +171,7 @@ class ResumeAnalysisAgent:
         
         # Step 4: Create analysis prompt
         prompt = f"""
+        You are strict prompt follower and analyze carefully the prompt and do what only that prompt say,
         Evaluate how well the resume demonstrates skill: {skill}.
         
         Resume Content:
@@ -150,16 +202,14 @@ class ResumeAnalysisAgent:
         return skill, min(score, 10), reasoning
 
 
-    def analyze_resume_weaknesses(self):
-        """Analyze specific weaknesses in the reason based on missing skills"""
-        if not self.resume_text or not self.extracted_skills or not self.analysis_result:
-            return[]
-        
+    def analyze_resume_weaknesses(self,analysis_result):
+        """Analyze specific weaknesses in the reason based on missing skills"""        
         weaknesses=[]
 
-        for skill in self.analysis_result.get("missing_skills",[]):
+        for skill in analysis_result.get("missing_skills",[])[:2]:
             # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
             prompt=f"""
+            You are strict prompt follower and analyze carefully the prompt and do what only that prompt say,
             Analyze why the resume is weak in demonstrating proficiency in "{skill}".
             
             For your analysis consider:
@@ -192,7 +242,6 @@ class ResumeAnalysisAgent:
 
                 weakness_detail={
                     "skill":skill,
-                    "score":self.analysis_result.get("skill_scores",{}).get(skill,0),
                     "detail":weakness_data.get("weakness","No specific details provided."),
                     "suggestions":weakness_data.get("improvement_suggestions",[]),
                     "example":weakness_data.get("example_addition","")
@@ -204,64 +253,371 @@ class ResumeAnalysisAgent:
                     "suggestions":weakness_data.get("improvement_suggestions",[]),
                     "example":weakness_data.get("example_addition","")
                 }
+                print("✅ weakness addresed properly")
             except json.JSONDecodeError:
 
                 weaknesses.append({
                     "skill":skill,
-                    "score":self.analysis_result.get("skill_scores",{}).get(skill,0),
                     "detail":weakness_content[:200] # truncate if it's not proper json
                 })
 
         self.resume_weaknesses=weaknesses
         return weaknesses
     
+    # def extract_skills_from_resume(self, rag_vectorstore):
+    #     """Extract technical skills from a resume using RAG and LLM."""
+    #     skills = []
 
-    def extract_skill_from_jd(self,jd_text):
-        """Extract skills from a job description"""
+    #     try:
+    #         # Create retriever from vectorstore
+    #         retriever = rag_vectorstore.as_retriever()
+    #         query = "Extract all technical skills, programming languages, frameworks, tools, cloud platforms, and technologies mentioned in this resume."
+    #         relevant_chunks = retriever.invoke(query)
+    #         context_text = "\n".join([doc.page_content for doc in relevant_chunks])
+
+    #         # Prompt to extract technical skills in strict JSON format
+    #         prompt = f"""
+    #         You are strict prompt follower and analyze carefully the prompt and do what only that prompt say,
+    #         Extract all technical skills strictly and only from the following resume context. 
+    #         Include programming languages, frameworks, libraries, tools, platforms, cloud services, databases, and ML/AI tools.
+    #         Avoid non-technical or soft skills. 
+    #         Return in strict JSON format with a single key "technical_skills" as a list of strings.
+
+    #         Example output:
+    #         {{
+    #             "technical_skills": ["Python", "Java", "TensorFlow", "PyTorch", "AWS", "Docker", "Kubernetes"]
+    #         }}
+
+    #         Resume Context:
+    #         {context_text}
+    #         """
+
+    #         # Call LLM
+    #         response_text = safe_llm_invoke(self.llm, prompt).content.strip()
+
+    #         # Parse JSON from response
+    #         match = re.search(r'\{.*\}', response_text, re.DOTALL)
+    #         if match:
+    #             data = json.loads(match.group())
+    #             skills = data.get("technical_skills", [])
+
+    #     except Exception as e:
+    #         print(f"Error extracting technical skills via RAG: {e}")
+
+    #     return skills
+    
+
+
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+
+
+
+
+    def extract_info_from_resume(self,resume_text):
         try:
-            # llm=ChatGroq(model="llama-3.1-8b-instant",api_key=self.api_key)
-            prompt=f"""
-            Extract a comprehensive list of technical skills,technologies, and 
-            competencies required from this job description,
-            Format the output as a Python list of strings. Only includes the list,
-            nothing else.
+            prompt = f"""
+            System: You are a resume parsing expert.
+            Task: Extract all valid information of the following fields (skills, education, experience) from the variable "Resume Content" Only. Only extract information present in "Resume Content". Do NOT hallucinate. Each field's value must be a list of strings. If no information is found, return ["Not found"].
+            Note: Use {resume_text} wherever the "Resume Content" needs to be referenced.
 
-            Job Description:
-            {jd_text}
+            Fields to extract:
+
+            1. Skills: Technical tools, programming languages, frameworks, and domain knowledge. Example: ["Python", "JavaScript", "React.js", "Node.js", "SQL", "Docker", "LangChain", "Machine Learning", "llama3:1b", "RAG", "AI-Agent"]
+            2. Education: Degree, major/subject, institution, and explicitlty graduation year . Example: ["B.Tech in Computer Science, Stanford University (2020–2024)", "B.Sc in Data Science, University of California, Berkeley (2021–2024)", "B.E in IT, IIT Bombay (2019–2023)"]
+            3. Experience: Hands-on experience from projects, internships, hackathons, open-source contributions, competitions, or work experience. Example: ["Built an AI agent using LangChain and ChatGroq (Llama-3.1-8B) for real-time query handling and structured responses.", "Developed a recommendation system with Python and Scikit-learn to provide personalized product suggestions.", "Created an NLP pipeline with SpaCy and Transformers for sentiment analysis and entity recognition on large datasets.", "Implemented a serverless REST API using FastAPI and AWS Lambda for high-volume requests with low latency.", "Designed an interactive dashboard with Streamlit and Plotly to visualize real-time sales data and key metrics."]
+
+            Expected Output example:
+            {{
+                "skills": ["Python", "React.js", "Docker"],
+                "education": ["B.Tech in Computer Science, Stanford University (2020–2024)"],
+                "experience": ["Hackathon Experience (college or national-level events)", "Open-Source Contribution Experience (GitHub projects)"]
+            }}
+
+                **RULES:**
+                - Only use information explicitly mentioned in the Resume
+                - If no information found in any field: ["None found"]
+                - Return ONLY valid JSON - no explanations!
+
             """
-            # response=llm.invoke(prompt)
-            # skills_text=str(response.content) ########################################################
+            response_text = safe_llm_invoke(self.llm, prompt).content.strip()
+            print(f"📄 Resume LLM response preview: {response_text[:10]}...") 
+            try:
+                llm_data = json.loads(response_text)
+            except json.JSONDecodeError:
+                # Fallback: extract JSON block safely
+                json_start = response_text.find("{")
+                json_end = response_text.rfind("}") + 1
+                if json_start != -1 and json_end != -1:
+                    llm_data = json.loads(response_text[json_start:json_end])
+                else:
+                    print("❌ LLM response does not contain JSON")
+                    llm_data = {}
 
-            skills_text = safe_llm_invoke(self.llm, prompt).content
+            skills = llm_data.get("skills", ["Not found"])
+            education = llm_data.get("education", ["Not found"])
+            experience = llm_data.get("experience", ["Not found"])
+            print(f"✅ Extracted: {len(skills)} skills, {len(education)} education, {len(experience)} experience")
+            return skills, education, experience
+
+        except Exception as e:
+            print(f"Error extracting skills/education/experience : {e}")
+
+         # Fallback
+        return ["Not found"], ["Not found"], ["Not found"]
+    
 
 
-            match=re.search(r'\[(.*?)\]',skills_text,re.DOTALL)
-            if match:
-                skills_text=match.group(0)
+
+
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+
+
+    # def extract_skill_from_text(self,text):
+    #     """Extract skills from a job description"""
+    #     try:
+    #         # llm=ChatGroq(model="llama-3.1-8b-instant",api_key=self.api_key)
+    #         prompt=f"""
+    #         You are strict prompt follower and analyze carefully the prompt and do what only that prompt say,
+    #         Extract a comprehensive list of technical skills,technologies, and 
+    #         competencies required from this job description,
+    #         Format the output as a Python list of strings. Only includes the list,
+    #         nothing else.
+
+    #         Job Description:
+    #         {text}
+    #         """
+    #         # response=llm.invoke(prompt)
+    #         # skills_text=str(response.content) ########################################################
+
+    #         skills_text = safe_llm_invoke(self.llm, prompt).content
+
+
+    #         match=re.search(r'\[(.*?)\]',skills_text,re.DOTALL)
+    #         if match:
+    #             skills_text=match.group(0)
+
+    #         try:
+    #             skills_list=eval(skills_text)
+    #             if isinstance(skills_list,list):
+    #                 return skills_list
+    #         except:
+    #             pass
+                
+    #         skills=[]
+    #         for line in skills_text.split('\n'):
+    #             line=line.strip()
+    #             if line.startswith('- ') or line.startswith('* '):
+    #                 skill=line[2:].strip()
+    #                 if skill:
+    #                     skills.append(skill)
+    #             elif line.startswith('"') and line.endswith('"'):
+    #                 skill=line.strip('"')
+    #                 if skill:
+    #                     skills.append(skill)
+    #         return skills
+    #     except Exception as e:
+    #         print(f"Error extracting skills from job description: {e}")
+    #         return []
+        
+
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+
+
+
+
+
+
+
+        
+    def compare_resume_jd(self,skills,experience,education,role_requirements=None,custom_jd=None):
+        try:
+            context_text=""
+            experiences=",".join(experience)[:2000]
+            skill=",".join(skills)
+            if custom_jd:
+                jd_text=self.extract_text_from_file(custom_jd)
+                jd_vectorstore=self.create_rag_vector_store(jd_text)
+                retriever=jd_vectorstore.as_retriever(search_kwargs={"k": 5})
+                query="Extract all technical skills, programming languages, frameworks, tools, cloud platforms, databases, and relevant technologies mentioned in this job description. Include both mandatory and optional skills.For example: ['Python', 'JavaScript', 'React.js', 'Node.js', 'SQL', 'Docker', 'AWS', 'Machine Learning', 'LangChain']."
+                relevant_chunks = retriever.invoke(query)
+                context_text = "\n".join([doc.page_content for doc in relevant_chunks])[:5000]
+                print(f"✅ JD context: {len(relevant_chunks)} chunks")
+            elif role_requirements:
+                context_text=",".join(role_requirements)
+                print(f"✅ Role requirements: {len(role_requirements)} skills")
+
+            if not context_text:
+                print("❌ NO JD CONTEXT - Returning empty!")
+
+            # Prompt to extract technical skills in strict JSON format
+            prompt = f"""
+            System: You are a resume parsing expert.
+
+            Task: Compare the candidate's skills ("resume skill")=>{skill} and ("experience")->{experiences} with the job description context ("context_text")=>{context_text} and extract the following fields. Only extract valid information from the context text and resume skills. Do NOT hallucinate. Each field's value must be a list of strings. If no information is found, return ["Not found"].  
+
+            Fields to extract:
+
+            1. Matching Skills: List of skills that are present both in the resume ("resume skill") also ("experience") and mentioned in the job description ("context_text").  
+            2. Skill Reasoning: For each matching skill, provide reasoning on how well the resume demonstrates the required skill.  
+            3. Missing Skills: List skills explicitly mentioned in the job description (context_text) that do not appear in the resume skills or experience, ordered in decreasing priority based on their importance in the job description.  
+            4. Extracted Skills: All skills explicitly mentioned in the job description ("context_text") irrespective of whether they match the resume.  
+
+            Example:  
+
+            Resume Skills: "Python, React.js, SQL, Docker"  
+            Job Description Context: "Looking for candidates with Python, JavaScript, React.js, Node.js, SQL, AWS, Docker, and CI/CD experience."  
+
+            Expected Output example:
+            {{
+                "Matching Skills": ["Python", "React.js", "SQL", "Docker"],
+                "Skill Reasoning": [
+                    "Python: Strong experience indicated in multiple projects",
+                    "React.js: Used in personal web development projects",
+                    "SQL: Demonstrated through database management tasks",
+                    "Docker: Used for containerizing projects"
+                ],
+                "Missing Skills": ["JavaScript", "Node.js", "AWS", "CI/CD"],
+                "Extracted Skills": ["Python", "JavaScript", "React.js", "Node.js", "SQL", "AWS", "Docker", "CI/CD"]
+            }}
+
+            **RULES:**
+            - Only use skills explicitly mentioned
+            - Skill Reasoning must match exactly 1:1 with Matching Skills order
+            - If no matches: ["None found"]
+            - Return ONLY valid JSON - no explanations!
+
+            """
+
+            response_text = safe_llm_invoke(self.llm, prompt).content.strip()
+        
+                        # ---------- SAFE LLM JSON PARSING ----------
+            print(f"📄 JD Match LLM response preview:\n{response_text[:10]}\n")
 
             try:
-                skills_list=eval(skills_text)
-                if isinstance(skills_list,list):
-                    return skills_list
-            except:
-                pass
-                
-            skills=[]
-            for line in skills_text.split('\n'):
-                line=line.strip()
-                if line.startswith('- ') or line.startswith('* '):
-                    skill=line[2:].strip()
-                    if skill:
-                        skills.append(skill)
-                elif line.startswith('"') and line.endswith('"'):
-                    skill=line.strip('"')
-                    if skill:
-                        skills.append(skill)
-            return skills
+                # 1️⃣ Try direct JSON parse
+                llm_data = json.loads(response_text)
+
+            except json.JSONDecodeError:
+                # 2️⃣ Fallback: extract JSON block manually
+                json_start = response_text.find("{")
+                json_end = response_text.rfind("}") + 1
+
+                if json_start != -1 and json_end != -1:
+                    try:
+                        llm_data = json.loads(response_text[json_start:json_end])
+                    except json.JSONDecodeError as e:
+                        print("❌ JD Match JSON extraction failed:", e)
+                        llm_data = {}
+                else:
+                    print("❌ No JSON found in JD Match LLM response")
+                    llm_data = {}
+
+            # ---------- SAFE FIELD EXTRACTION ----------
+            matching_skills = llm_data.get("Matching Skills", [])
+            skill_reasoning = llm_data.get("Skill Reasoning", [])
+            missing_skills = llm_data.get("Missing Skills", [])
+            extracted_skills = llm_data.get("Extracted Skills", [])
+
+            print(
+                f"✅ LLM Parsed → "
+                f"Matches: {len(matching_skills)}, "
+                f"JD Skills: {len(extracted_skills)}, "
+                f"Gaps: {len(missing_skills)}"
+)
+
+            
+            # ✅ RULE-BASED CALCULATIONS (No semantic analysis needed)
+            total_jd_skills = len(extracted_skills)
+            match_count = len(matching_skills)
+            overall_score = int((match_count / max(1, total_jd_skills)) * 100)
+            
+            # Strengths = matching_skills (as requested)
+            strengths = matching_skills.copy()
+            improvement_area = missing_skills if overall_score < self.cutoff_score else []
+            
+            # PERFECT OUTPUT STRUCTURE (Exactly as requested)
+            result = {
+                "resume_skills": skills,   
+                "experience": experience,
+                "education": education,           # Input parameter
+                "matching_skills": matching_skills,          # LLM + strengths
+                "strengths": strengths,                      # = matching_skills
+                "skill_reasoning": skill_reasoning,          # LLM
+                "missing_skills": missing_skills,            # LLM
+                "extracted_skills": extracted_skills,        # LLM (JD skills)
+                "overall_score": overall_score,              # = match_percentage
+                "improvement_area":improvement_area,
+                "selected": overall_score >= self.cutoff_score
+            }
+            
+            print(f"✅ Analysis: {overall_score}% | Strengths: {len(strengths)} | Gaps: {len(missing_skills)}")
+            return result
+            
         except Exception as e:
-            print(f"Error extracting skills from job description: {e}")
-            return []
+            print(f"❌ compare_resume_jd error: {e}")
+            return {
+                "resume_skills": skills,
+                "experience": experience,
+                "education": education,
+                "matching_skills": [],
+                "strengths": [],
+                "skill_reasoning": [],
+                "missing_skills": [],
+                "extracted_skills": [],
+                "overall_score": 0,
+                "improvement_area": [],
+                "selected": False,
+                "error": str(e)
+            }
+
+
+
+
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+
+
+
+
+
+    def analyze_system(self,resume_file,role_requirements=None,custom_jd=None):
+        """Analyze a resume against role requirements or a custom JD"""
+        self.resume_text=self.extract_text_from_file(resume_file)
+        self.rag_vectorstore=self.create_rag_vector_store(self.resume_text)
+
+        skills,education,experience=self.extract_info_from_resume(self.resume_text)
+        print(f"🔍 Raw extraction: {len(skills)} skills") 
+
+        analysis=self.compare_resume_jd(skills=skills,experience=experience,education=education,role_requirements=role_requirements,custom_jd=custom_jd)
+
+        analysis["contact_info"]=self.extract_contact_info(self.resume_text)
+        print("✅ contact info add")
+
+        if analysis and "missing_skills" in analysis and analysis["missing_skills"]:
+            self.resume_weaknesses=self.analyze_resume_weaknesses(analysis)
+
+            analysis["detailed_weaknesses"]=self.resume_weaknesses
+        print("✅ done everything in analyze_system")
         
+        return analysis,self.resume_text
+
+
+
+
+
+
+
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+
+
+
+
+
+
     def semantic_skill_analysis(self, resume_text, skills):
         """Analysis skills semantically"""
         vectorstore = self.create_vector_store(resume_text)
@@ -290,7 +646,7 @@ class ResumeAnalysisAgent:
         selected = overall_score >= self.cutoff_score
 
         reasoning = "Candidate evaluated based on explicit resume content using semantic similarity and clear numeric scoring."
-        strengths = [skill for skill, score in skill_scores.items() if score >= 7]
+        strengths = [skill for skill, score in skill_scores.items() if score >= 6]
         improvement_areas = missing_skills if not selected else []
 
         self.resume_strengths = strengths
@@ -306,33 +662,152 @@ class ResumeAnalysisAgent:
             "improvement_areas": improvement_areas
         }
 
+    def extract_contact_info(self,text):
+        # Extract email and phone using regex
+        email_pattern=r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        emails=re.findall(email_pattern,text)
+        if emails:
+            self.contact_info["email"]=emails[0]
 
-    def analyze_resume(self,resume_file,role_requirements=None,custom_jd=None):
-        """Analyze a resume against role requirements or a custom JD"""
-        self.resume_text=self.extract_text_from_file(resume_file)
+        phone_pattern=r'\b(?:\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b'
+        phones=re.findall(phone_pattern,text)
+        if phones:
+            self.contact_info["phone"]=phones[0]
+        
+        return self.contact_info
 
-        with tempfile.NamedTemporaryFile(delete=False,suffix='.txt',mode='w',encoding='utf-8') as tmp:
-            tmp.write(self.resume_text)
-            self.resume_file_path=tmp.name
+        
+    # def extract_education_experience_from_resume_text(self, resume_text,rag_vectorstore):
+    #     """
+    #     Extract education and work experience from resume text in a single LLM call.
 
-        self.rag_vectorstore=self.create_rag_vector_store(self.resume_text)
+    #     Args:
+    #         resume_text (str): The full text of the resume
 
-        if custom_jd:
-            self.jd_text=self.extract_text_from_file(custom_jd)
-            self.extracted_skills=self.extract_skill_from_jd(self.jd_text)
+    #     Returns:
+    #         education (list): List of education entries
+    #         experience (list): List of work experience entries
+    #     """
+    #     education = []
+    #     experience = []
 
-            self.analysis_result=self.semantic_skill_analysis(self.resume_text,self.extracted_skills)
-        elif role_requirements:
-            self.extracted_skills=role_requirements
+    #     try:
+    #         prompt = f"""
+    #         Extract education and work experience from the following resume.
 
-            self.analysis_result=self.semantic_skill_analysis(self.resume_text,role_requirements)
+    #         1. Education: (string)->"Degree, field of study, Include institution and graduation dates" and all details must be stored in string format inside list.
+    #         2. Work Experience: (string)->"Include company name, job title, employment dates, ,competitions, hackathons ,apply skills in real-world projects, key responsibilities" and all details must be stored in string format inside list.
 
-        if self.analysis_result and "missing_skills" in self.analysis_result and self.analysis_result["missing_skills"]:
-            self.analyze_resume_weaknesses()
+    #         Return the output in "strict JSON" format as:
+    #         example:-{{
+    #             "education": ["B.Tech in Computer Science from Delhi Technical Unniversity 2020-2024",....],
+    #             "experience": ["Technical excutive in XYZ company","Developing prototype for tesla inovation"]
+    #         }}
 
-            self.analysis_result["detailed_weaknesses"]=self.resume_weaknesses
+    #         Resume:
+    #         {resume_text}
+    #         """
 
-        return self.analysis_result
+    #         response_text = safe_llm_invoke(self.llm, prompt).content.strip()
+
+    #         # Parse JSON safely
+    #         match = re.search(r'\{.*\}', response_text, re.DOTALL)
+    #         if match:
+    #             data = json.loads(match.group())
+    #             education = data.get("education", [])
+    #             experience = data.get("experience", [])
+
+    #     except Exception as e:
+    #         print(f"Error extracting education/experience: {e}")
+
+    #     return education, experience
+
+    # def extract_education_experience_from_rag(self, rag_vectorstore):
+    #     education, experience = [], []
+
+    #     try:
+    #         retriever = rag_vectorstore.as_retriever(search_kwargs={"k": 5})
+    #         query = "Extract all education and work/project experience details from this resume"
+    #         relevant_chunks = retriever.invoke(query)
+    #         context_text = "\n".join([doc.page_content for doc in relevant_chunks])
+
+    #         prompt = f"""
+    #         You are strict prompt follower and analyze carefully the prompt and do what only that prompt say,
+    #         Extract education and work experience from the following resume context.
+
+    #         1. Education: Include degree, subject/major, institution, graduation date. Return as list of strings.
+    #         2. Work Experience: Include company, job title, employment dates, ,competitions, hackathons ,apply skills in real-world projects, key responsibilities. Return as list of strings.
+
+    #         Return in strict JSON format:
+    #         example:-
+    #         {{
+    #             "education": ["B.Tech in Computer Science from Delhi Technical Unniversity 2020-2024",....],
+    #             "experience": ["Developed a cutting-edge prototype for Tesla innovation"]
+    #         }}
+
+    #         Output should be valid education and experience mentioned in context only
+    #         Resume Context:
+    #         {context_text}
+    #         """
+
+    #         response_text = safe_llm_invoke(self.llm, prompt).content.strip()
+    #         match = re.search(r'\{.*\}', response_text, re.DOTALL)
+    #         if match:
+    #             data = json.loads(match.group())
+    #             education = data.get("education", [])
+    #             experience = data.get("experience", [])
+
+    #     except Exception as e:
+    #         print(f"Error extracting education/experience via RAG: {e}")
+
+    #     return education, experience
+
+
+    # def analyze_resume_llm(self,resume_file,role_requirements=None,custom_jd=None):
+    #     """Analyze a resume against role requirements or a custom JD"""
+    #     self.resume_text=self.extract_text_from_file(resume_file)
+
+    #     with tempfile.NamedTemporaryFile(delete=False,suffix='.txt',mode='w',encoding='utf-8') as tmp:
+    #         tmp.write(self.resume_text)
+    #         self.resume_file_path=tmp.name
+
+    #     self.rag_vectorstore=self.create_rag_vector_store(self.resume_text)
+    
+    #     self.education,self.experience=self.extract_education_experience_from_rag(self.rag_vectorstore)
+
+    #     if custom_jd:
+    #         self.jd_text=self.extract_text_from_file(custom_jd)
+    #         self.extracted_skills=self.extract_skill_from_text(self.jd_text)
+
+    #         self.analysis_result=self.semantic_skill_analysis(self.resume_text,self.extracted_skills)
+    #     elif role_requirements:
+    #         self.extracted_skills=role_requirements
+
+    #         self.analysis_result=self.semantic_skill_analysis(self.resume_text,role_requirements)
+        
+    #     if self.analysis_result and "missing_skills" in self.analysis_result and self.analysis_result["missing_skills"]:
+    #         self.analyze_resume_weaknesses()
+
+    #         self.analysis_result["detailed_weaknesses"]=self.resume_weaknesses
+        
+    #     if self.analysis_result and "resume_skill" not in self.analysis_result:
+    #         self.resume_skill=self.extract_skills_from_resume(self.resume_text)
+    #         self.analysis_result["resume_skill"]=self.resume_skill
+        
+    #     if self.analysis_result and "education" not in self.analysis_result:
+    #         self.analysis_result["education"]=self.education
+        
+    #     if self.analysis_result and "experience" not in self.analysis_result:
+    #         self.analysis_result["experience"]=self.experience
+
+    #     if self.analysis_result and "contact_info" not in self.analysis_result:
+    #         self.analysis_result["contact_info"]=self.extract_contact_info(self.resume_text)
+        
+    #     if self.analysis_result and self.resume_strengths:
+    #         self.analysis_result["strengths"]=self.resume_strengths
+
+
+    #     return self.analysis_result,self.resume_text
 
 
     def ask_question(self, question):
@@ -341,18 +816,19 @@ class ResumeAnalysisAgent:
             return "Please analyze a resume first"
         
         retriever = self.rag_vectorstore.as_retriever(search_kwargs={"k": 3})
-        llm = ChatGroq(
-            model='llama-3.1-8b-instant',
-            api_key=self.api_key
-        )
+        # llm = ChatGroq(
+        #     model='llama-3.1-8b-instant',
+        #     api_key=GROQ_API_KEY
+        # )
+
         
         docs = retriever.invoke(question)
         context = "\n".join([doc.page_content for doc in docs])
         
-        prompt = f"""
+        prompt = f""" You are strict prompt follower and analyze carefully the prompt and do what only that prompt say,
         You are a helpful assistant answering questions about a resume.
         
-        Based on the following resume content, answer the user's question accurately and concisely.
+        Based on the following resume content only, answer the user's question accurately and concisely.
         
         Resume Content:
         {context}
@@ -362,7 +838,7 @@ class ResumeAnalysisAgent:
         Answer:
         """
         
-        response = llm.invoke(prompt)
+        response = self.llm.invoke(prompt)
         return response.content.strip() #######################
         
     def generate_interview_questions(self,question_types,difficulty,num_questions):
@@ -381,6 +857,7 @@ class ResumeAnalysisAgent:
                 Areas of improvement: {', '.join(self.analysis_result.get('missing_skills',[]))}
                 """
             prompt=f"""
+                You are strict prompt follower and do what only that prompt say,
                     Generate {num_questions} personalized {difficulty.lower()} level
                     interview questions for this candidate based on their resume and skills.Include only the following question
                     types: {', '.join(question_types)}.
@@ -505,6 +982,7 @@ class ResumeAnalysisAgent:
                 """
 
                 prompt=f"""
+                You are strict prompt follower and do what only that prompt say,
                 Provide detailed suggestions to improve this resume in the following areas: {', '.join(remaining_areas)}.
                 
                 {context}
@@ -585,7 +1063,7 @@ class ResumeAnalysisAgent:
                 if len(highlight_skills)>100:
                     self.jd_text=highlight_skills
                     try:
-                        parsed_skills=self.extract_skill_from_jd(highlight_skills)
+                        parsed_skills=self.extract_skill_from_text(highlight_skills)
                         if parsed_skills:
                             skills_to_highlight=parsed_skills
                         else:
@@ -630,6 +1108,7 @@ class ResumeAnalysisAgent:
                 jd_context=f"Target Role: {target_role}\n\n"
 
             prompt=f"""
+            You are strict prompt follower and do what only that prompt say,
             Rewrite and improve this resume to make it highly optimized for the target job.
             {jd_context}
             Original Resume:
@@ -680,4 +1159,51 @@ class ResumeAnalysisAgent:
 
 
 
+########################################################################################################################################################################################################
 
+import streamlit as st
+class Implement:
+    def __init__(self):
+        self.agent=ResumeAnalysisAgent()
+
+    def analyze_resume(self,resume_file,role=None,custom_jd=None):
+        """Analyze the resume with the agent"""
+        return self.agent.analyze_system(resume_file,role,custom_jd)
+        
+    def ask_question(self,question):
+        """Ask a question about the resume"""
+        try:
+            with st.spinner("Generating response..."):
+                response=self.agent.ask_question(question)
+                return response
+        except Exception as e:
+            return f"Error: {e}"
+        
+    def generate_interview_questions(self,question_types,difficulty,num_questions):
+        """Generate interview question based on the resume"""
+        try:
+            with st.spinner("Generating personalized interview questions..."):
+                questions=self.agent.generate_interview_questions(question_types,difficulty,num_questions)
+                return questions
+            
+        except Exception as e:
+            st.error(f"Error generating questions: {e}")
+            return []
+        
+    def improve_resume(self,improvement_areas,target_role):
+        """Generate resume improvement suggestions"""
+        try:
+            with st.spinner("Analyzing and generating improvements...."):
+                return self.agent.improve_resume(improvement_areas,target_role)
+        except Exception as e:
+            st.error(f"Error generating improvements: {e}")
+            return {}
+            
+    def get_improved_resume(self,target_role,highlight_skills):
+        """Get an improved version of the resume"""
+        try:
+            with st.spinner("Creating improved resume..."):
+                return self.agent.get_improved_resume(target_role,highlight_skills)
+        except Exception as e:
+            st.error(f"Error creating improved resume: {e}")
+            return "Error generating improved resume."
