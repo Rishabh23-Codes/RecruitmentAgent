@@ -3,6 +3,7 @@ from config import COLORS
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import pandas as pd
+import base64
 
 
 # Role requirement dictionary
@@ -456,7 +457,7 @@ def clean_and_organize_experience(experience_items):
 
 
 
-def display_extracted_information(resume_data):
+def display_extracted_information(resume_data,resume_file):
     """Display extracted resume information with better visibility.
         Args:
             resume_data (dict): The parsed resume data dictionary
@@ -499,6 +500,20 @@ def display_extracted_information(resume_data):
 
         education_html+="</div>"
         st.markdown(education_html,unsafe_allow_html=True)
+
+        st.markdown("""<h4 style="color: #333; margin-bottom: 10px; margin-top: 10px;">🖼️ Resume Preview</h4>""",unsafe_allow_html=True)
+        if resume_file:
+            pdf_bytes = resume_file.read()
+            base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+
+            st.markdown(
+                f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0&navpanes=0" '
+                f'width="100%" height="800"></iframe>',
+                unsafe_allow_html=True
+            )
+
+
+
 
     with info_col2:
         # Display skills with high-contrast horizontal layout

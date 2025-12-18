@@ -324,7 +324,7 @@ with tabs[0]:
 
         # Tab 2: Skills & Experience
         with resume_tabs[1]:
-            display_extracted_information(st.session_state.resume_data)
+            display_extracted_information(st.session_state.resume_data,resume_file)
     
         # Tab 3: Analysis
         with resume_tabs[2]:

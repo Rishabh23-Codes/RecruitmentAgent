@@ -200,28 +200,32 @@ class ResumeAnalysisAgent:
                 reasoning = parts[1].strip()
         
         return skill, min(score, 10), reasoning
+    
+
+
+
 
 
     def analyze_resume_weaknesses(self,analysis_result):
         """Analyze specific weaknesses in the reason based on missing skills"""        
-        weaknesses=[]
+        skill=analysis_result.get("missing_skills",[])[:5]
+        # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
+        prompt=f"""
+        Follow the prompt exactly and do iteratively for each and every skill mentioned in the "{skill}" and 
+        Analyze why the resume is weak in demonstrating proficiency in that skill.
+        
+        For your analysis consider:
+        1. What's missing from the resume regarding this skill?
+        2. How could it be improved with specific examples?
+        3. What specific action items would make this skill stand out?
 
-        for skill in analysis_result.get("missing_skills",[])[:2]:
-            # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
-            prompt=f"""
-            You are strict prompt follower and analyze carefully the prompt and do what only that prompt say,
-            Analyze why the resume is weak in demonstrating proficiency in "{skill}".
-            
-            For your analysis consider:
-            1. What's missing from the resume regarding this skill?
-            2. How could it be improved with specific examples?
-            3. What specific action items would make this skill stand out?
+        Resume Context:
+        {self.resume_text[:3000]}...
 
-            Resume Context:
-            {self.resume_text[:3000]}...
-
-            Provide your response in this JSON format:
+        Provide your response in this JSON format:
+        [
             {{
+                "skill": "<skill name>",
                 "weakness":"A concise description of what's missing or problematic(1-2 sentences)",
                 "improvement_suggestions": [
                     "Specific suggestion 1",
@@ -230,39 +234,44 @@ class ResumeAnalysisAgent:
                 ],
                 "example addition":"A specific bullet point that could be added to showcase this skill"
             }}
-            Return only valid JSON, no other text.            
-            """
+        ]
 
-            # response=llm.invoke(prompt)
-            # weakness_content=response.content.strip() ##########
-            weakness_content = safe_llm_invoke(self.llm, prompt).content.strip()
+        Return only valid JSON, no other text.            
+        """
 
-            try:
-                weakness_data=json.loads(weakness_content)
+        # response=llm.invoke(prompt)
+        # weakness_content=response.content.strip() ##########
+        weakness_content = safe_llm_invoke(self.llm, prompt).content.strip()
+        # strip code fences if any
+        weakness_content = weakness_content.strip("```json").strip("```").strip()
 
-                weakness_detail={
-                    "skill":skill,
-                    "detail":weakness_data.get("weakness","No specific details provided."),
-                    "suggestions":weakness_data.get("improvement_suggestions",[]),
-                    "example":weakness_data.get("example_addition","")
-                }
+        try:
+            weakness_data=json.loads(weakness_content)
+            weaknesses=[]
 
-                weaknesses.append(weakness_detail)
-
-                self.improvement_suggestions[skill]={
-                    "suggestions":weakness_data.get("improvement_suggestions",[]),
-                    "example":weakness_data.get("example_addition","")
-                }
-                print("✅ weakness addresed properly")
-            except json.JSONDecodeError:
-
+            for item in weakness_data:
                 weaknesses.append({
-                    "skill":skill,
-                    "detail":weakness_content[:200] # truncate if it's not proper json
+                    "skill": item.get("skill"),
+                    "detail": item.get("weakness"),
+                    "suggestions": item.get("improvement_suggestions", []),
+                    "example": item.get("example_addition", "")
                 })
 
-        self.resume_weaknesses=weaknesses
-        return weaknesses
+                self.improvement_suggestions[item.get("skill")] = {
+                    "suggestions": item.get("improvement_suggestions", []),
+                    "example": item.get("example_addition", "")
+                }
+
+            self.resume_weaknesses = weaknesses
+            print("✅ weakness addresed properly")
+            return weaknesses
+
+        except json.JSONDecodeError as e:
+            print("❌LLM returned invalid JSON:", e)
+            return [{
+                "skill": "unknown",
+                "detail": weakness_content[:300]
+            }]
     
     # def extract_skills_from_resume(self, rag_vectorstore):
     #     """Extract technical skills from a resume using RAG and LLM."""
