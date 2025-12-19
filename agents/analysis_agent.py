@@ -14,6 +14,9 @@ from config import GROQ_API_KEY,LLM_MODEL
 import docx
 from docling.document_converter import DocumentConverter
 from langchain_ollama.chat_models import ChatOllama
+from ui_utils import role_requirements as require
+from pathlib import Path
+
 
 def safe_llm_invoke(llm, prompt, max_retries=3):
     for attempt in range(max_retries):
@@ -446,6 +449,7 @@ class ResumeAnalysisAgent:
             context_text=""
             experiences=",".join(experience)[:2000]
             skill=",".join(skills)
+            role=None
             if custom_jd:
                 jd_text=self.extract_text_from_file(custom_jd)
                 jd_vectorstore=self.create_rag_vector_store(jd_text)
@@ -455,6 +459,7 @@ class ResumeAnalysisAgent:
                 context_text = "\n".join([doc.page_content for doc in relevant_chunks])[:5000]
                 print(f"✅ JD context: {len(relevant_chunks)} chunks")
             elif role_requirements:
+                role = next((key for key, values in require.items() if any(v in values for v in role_requirements)), None)
                 context_text=",".join(role_requirements)
                 print(f"✅ Role requirements: {len(role_requirements)} skills")
 
@@ -469,10 +474,12 @@ class ResumeAnalysisAgent:
 
             Fields to extract:
 
-            1. Matching Skills: List of skills that are present both in the resume ("resume skill") also ("experience") and mentioned in the job description ("context_text").  
+            1. Matching Skills: List of skills that are present both in the resume ("resume skill") also ("experience") and mentioned in the ("context_text").  
             2. Skill Reasoning: For each matching skill, provide reasoning on how well the resume demonstrates the required skill.  
             3. Missing Skills: List skills explicitly mentioned in the job description (context_text) that do not appear in the resume skills or experience, ordered in decreasing priority based on their importance in the job description.  
             4. Extracted Skills: All skills explicitly mentioned in the job description ("context_text") irrespective of whether they match the resume.  
+            5. Job Role:{role if role else "extract the job role from context_text"}
+            6. Job Description: generate a professional detailed Job description based on {"extracting the skills from: "+role if role else "context_text"}
 
             Example:  
 
@@ -490,6 +497,8 @@ class ResumeAnalysisAgent:
                 ],
                 "Missing Skills": ["JavaScript", "Node.js", "AWS", "CI/CD"],
                 "Extracted Skills": ["Python", "JavaScript", "React.js", "Node.js", "SQL", "AWS", "Docker", "CI/CD"]
+                "Job Role": "Web Developer",
+                "Job Description": "Looking for candidates with Python, JavaScript, React.js, Node.js, SQL, AWS, Docker, and CI/CD experience."  
             }}
 
             **RULES:**
@@ -529,12 +538,16 @@ class ResumeAnalysisAgent:
             skill_reasoning = llm_data.get("Skill Reasoning", [])
             missing_skills = llm_data.get("Missing Skills", [])
             extracted_skills = llm_data.get("Extracted Skills", [])
+            job_role=llm_data.get("Job Role","")
+            job_description=llm_data.get("Job Description","")
 
             print(
                 f"✅ LLM Parsed → "
                 f"Matches: {len(matching_skills)}, "
                 f"JD Skills: {len(extracted_skills)}, "
-                f"Gaps: {len(missing_skills)}"
+                f"Gaps: {len(missing_skills)}",
+                f"role: {job_role}",
+                f"jd: {len(job_description)}"
 )
 
             
@@ -559,7 +572,9 @@ class ResumeAnalysisAgent:
                 "extracted_skills": extracted_skills,        # LLM (JD skills)
                 "overall_score": overall_score,              # = match_percentage
                 "improvement_area":improvement_area,
-                "selected": overall_score >= self.cutoff_score
+                "selected": overall_score >= self.cutoff_score,
+                "job_role": job_role,
+                "job_description":job_description
             }
             
             print(f"✅ Analysis: {overall_score}% | Strengths: {len(strengths)} | Gaps: {len(missing_skills)}")
@@ -579,6 +594,8 @@ class ResumeAnalysisAgent:
                 "overall_score": 0,
                 "improvement_area": [],
                 "selected": False,
+                "job_role": "",
+                "job_description":"",
                 "error": str(e)
             }
 
@@ -594,6 +611,7 @@ class ResumeAnalysisAgent:
 
     def analyze_system(self,resume_file,role_requirements=None,custom_jd=None):
         """Analyze a resume against role requirements or a custom JD"""
+        latex_code=""
         self.resume_text=self.extract_text_from_file(resume_file)
         self.rag_vectorstore=self.create_rag_vector_store(self.resume_text)
 
@@ -609,9 +627,16 @@ class ResumeAnalysisAgent:
             self.resume_weaknesses=self.analyze_resume_weaknesses(analysis)
 
             analysis["detailed_weaknesses"]=self.resume_weaknesses
+        if analysis:
+            latex_code = self.get_improved_resume(analysis)
+            if not latex_code:
+                print("Error: Latex code generation failed.")
+            else:
+                print("✅ all necessary requirement complete for latex code generation")            
+
         print("✅ done everything in analyze_system")
         
-        return analysis,self.resume_text
+        return analysis,self.resume_text,latex_code
 
 
 
@@ -1061,100 +1086,100 @@ class ResumeAnalysisAgent:
             return {area:{"description":"Error generating suggestions","specific":[]} for area in improvement_areas}
 
 
-    def get_improved_resume(self,target_role="",highlight_skills=""):
-        """Generate an improved version of the resume optimized for the job description"""
-        if not self.resume_text:
-            return "Please upload and analyze a resume first"
-        try:
-            #Parse highlight skills if provided
-            skills_to_highlight=[]
-            if highlight_skills:
-                if len(highlight_skills)>100:
-                    self.jd_text=highlight_skills
-                    try:
-                        parsed_skills=self.extract_skill_from_text(highlight_skills)
-                        if parsed_skills:
-                            skills_to_highlight=parsed_skills
-                        else:
-                            skills_to_highlight=[s.strip() for s in highlight_skills.split(",") if s.strip()]
-                    except:
-                        skills_to_highlight=[s.strip() for s in highlight_skills.split(",") if s.strip()]
-                else:
-                    skills_to_highlight=[s.strip() for s in highlight_skills.split(",") if s.strip()]
-            if not skills_to_highlight and self.analysis_result:
-                skills_to_highlight=self.analysis_result.get('missing_skills',[])
-                skills_to_highlight.extend([
-                    skill for skill in self.analysis_result.get('strengths',[]) if skill not in skills_to_highlight
-                ])
+    # def get_improved_resume(self,target_role="",highlight_skills=""):
+    #     """Generate an improved version of the resume optimized for the job description"""
+    #     if not self.resume_text:
+    #         return "Please upload and analyze a resume first"
+    #     try:
+    #         #Parse highlight skills if provided
+    #         skills_to_highlight=[]
+    #         if highlight_skills:
+    #             if len(highlight_skills)>100:
+    #                 self.jd_text=highlight_skills
+    #                 try:
+    #                     parsed_skills=self.extract_skill_from_text(highlight_skills)
+    #                     if parsed_skills:
+    #                         skills_to_highlight=parsed_skills
+    #                     else:
+    #                         skills_to_highlight=[s.strip() for s in highlight_skills.split(",") if s.strip()]
+    #                 except:
+    #                     skills_to_highlight=[s.strip() for s in highlight_skills.split(",") if s.strip()]
+    #             else:
+    #                 skills_to_highlight=[s.strip() for s in highlight_skills.split(",") if s.strip()]
+    #         if not skills_to_highlight and self.analysis_result:
+    #             skills_to_highlight=self.analysis_result.get('missing_skills',[])
+    #             skills_to_highlight.extend([
+    #                 skill for skill in self.analysis_result.get('strengths',[]) if skill not in skills_to_highlight
+    #             ])
 
-                if self.extracted_skills:
-                    skills_to_highlight.extend([
-                        skill for skill in self.extracted_skills if skill not in skills_to_highlight
-                    ])
+    #             if self.extracted_skills:
+    #                 skills_to_highlight.extend([
+    #                     skill for skill in self.extracted_skills if skill not in skills_to_highlight
+    #                 ])
 
-            weakness_context=""
-            improvement_examples=""
+    #         weakness_context=""
+    #         improvement_examples=""
 
-            if self.resume_weaknesses:
-                weakness_context="Address these specific weaknesses:\n"
+    #         if self.resume_weaknesses:
+    #             weakness_context="Address these specific weaknesses:\n"
 
-                for weakness in self.resume_weaknesses:
-                    skill_name=weakness.get('skill','')
-                    weakness_context+=f"- {skill_name}: {weakness.get('detail','')}\n"
+    #             for weakness in self.resume_weaknesses:
+    #                 skill_name=weakness.get('skill','')
+    #                 weakness_context+=f"- {skill_name}: {weakness.get('detail','')}\n"
 
-                    if 'suggestions' in weakness and weakness['suggestions']:
-                        weakness_context+=" Suggested improvements:\n"
-                        for suggestion in weakness['suggestions']:
-                            weakness_context+=f" * {suggestion}\n"
-                    if 'example' in weakness and weakness['example']:
-                        improvement_examples+=f"for {skill_name}: {weakness['example']}\n\n"
-            # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
+    #                 if 'suggestions' in weakness and weakness['suggestions']:
+    #                     weakness_context+=" Suggested improvements:\n"
+    #                     for suggestion in weakness['suggestions']:
+    #                         weakness_context+=f" * {suggestion}\n"
+    #                 if 'example' in weakness and weakness['example']:
+    #                     improvement_examples+=f"for {skill_name}: {weakness['example']}\n\n"
+    #         # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
 
-            jd_context=""
-            if self.jd_text:
-                jd_context=f"Job Description:\n{self.jd_text}\n\n"
-            elif target_role:
-                jd_context=f"Target Role: {target_role}\n\n"
+    #         jd_context=""
+    #         if self.jd_text:
+    #             jd_context=f"Job Description:\n{self.jd_text}\n\n"
+    #         elif target_role:
+    #             jd_context=f"Target Role: {target_role}\n\n"
 
-            prompt=f"""
-            You are strict prompt follower and do what only that prompt say,
-            Rewrite and improve this resume to make it highly optimized for the target job.
-            {jd_context}
-            Original Resume:
-            {self.resume_text}
-            Skills to highlight (in order of priority): {', '.join(skills_to_highlight)}
+    #         prompt=f"""
+    #         You are strict prompt follower and do what only that prompt say,
+    #         Rewrite and improve this resume to make it highly optimized for the target job.
+    #         {jd_context}
+    #         Original Resume:
+    #         {self.resume_text}
+    #         Skills to highlight (in order of priority): {', '.join(skills_to_highlight)}
             
-            {weakness_context}
+    #         {weakness_context}
 
-            Here are specific examples of content to add:
-            {improvement_examples}
+    #         Here are specific examples of content to add:
+    #         {improvement_examples}
 
-            Please improve the resume by:
-            1. Adding strong, quantifiable achievements
-            2. Highlighting the specified skills strategically for ATS scanning
-            3. Addressing all the weakness areas identified with the specific suggestions provided
-            4. Incorporating the example improvements provided above
-            5. Structuring the example improvements provided above
-            6. Using industry-standard terminology
-            7. Ensuring all relevant experience is properly emphasized
-            8. Adding measurable outcomes and achievements
+    #         Please improve the resume by:
+    #         1. Adding strong, quantifiable achievements
+    #         2. Highlighting the specified skills strategically for ATS scanning
+    #         3. Addressing all the weakness areas identified with the specific suggestions provided
+    #         4. Incorporating the example improvements provided above
+    #         5. Structuring the example improvements provided above
+    #         6. Using industry-standard terminology
+    #         7. Ensuring all relevant experience is properly emphasized
+    #         8. Adding measurable outcomes and achievements
 
-            Return only the improved resume text without any additional explanations.
-            Format the resume in a modern,clean style with clear section headings.
-            """
+    #         Return only the improved resume text without any additional explanations.
+    #         Format the resume in a modern,clean style with clear section headings.
+    #         """
 
-            # response=llm.invoke(prompt)
-            # improved_resume=response.content.strip()
-            improved_resume = safe_llm_invoke(self.llm, prompt).content.strip()
+    #         # response=llm.invoke(prompt)
+    #         # improved_resume=response.content.strip()
+    #         improved_resume = safe_llm_invoke(self.llm, prompt).content.strip()
 
-            with tempfile.NamedTemporaryFile(delete=False,suffix='.txt',mode='w',encoding='utf-8') as tmp:
-                tmp.write(improved_resume)
-                self.improved_resume_path=tmp.name
+    #         with tempfile.NamedTemporaryFile(delete=False,suffix='.txt',mode='w',encoding='utf-8') as tmp:
+    #             tmp.write(improved_resume)
+    #             self.improved_resume_path=tmp.name
 
-            return improved_resume
-        except Exception as e:
-            print(f"Error generating improved resume: {e}")
-            return "Error generating improved resume. Please try again."
+    #         return improved_resume
+    #     except Exception as e:
+    #         print(f"Error generating improved resume: {e}")
+    #         return "Error generating improved resume. Please try again."
 
     def cleanup(self):
         """Clean up temporary files"""
@@ -1166,7 +1191,512 @@ class ResumeAnalysisAgent:
         except Exception as e:
             print("Error cleaning up temporary files: {e}")
 
+########################################################################################################################################################################################################
 
+    def get_improved_resume(self,analysis_result):
+        """Generate an improved version of the resume optimized for the job description"""
+        try:
+            # # Define the LaTeX template separately
+            # latex_template = r"""
+            # \documentclass[a4paper,12pt]{article}
+            # \usepackage[margin=1in]{geometry}
+            # \usepackage{hyperref}
+
+            # \begin{document}
+
+            # \begin{center}
+            # \Huge \textbf{Candidate's Name} \\
+            # \small \href{mailto:email@example.com}{email@example.com} | 1234567890 \\
+            # \href{https://www.linkedin.com/in/candidate}{LinkedIn: candidate} | 
+            # \href{https://github.com/candidate}{GitHub: candidate}
+            # \end{center}
+
+            # \section*{Technical Skills}
+            # \noindent \textbf{Skills:}[SKILLS_SECTION]
+
+            # \section*{Experience}
+
+            # \noindent \textbf{Job Title}, Company Name \hfill Employment Dates \\
+            # \begin{itemize}
+            #     \item [EXPERIENCE]
+            # \end{itemize}
+
+
+            # \section*{Projects}
+            # \noindent \textbf{Project Name} \hfill \textit{Year} \\
+            # \begin{itemize}
+            #     \item [PROJECTS_SECTION]
+            # \end{itemize}
+
+            # \section*{Achievements}
+            # \noindent \textbf{Award or Recognition} \hfill Year \\
+            # [ACHIEVEMENTS_SECTION]
+
+            # \section*{Certifications}
+            # \noindent \textbf{[CERTIFICATE]} \hfill Year of Certification
+
+            # \section*{Education}
+            # \noindent \textbf{Degree Title}, University Name \hfill Graduation Year \\
+            # [EDUCATION_SECTION]
+
+            # \section*{Thesis}
+            # [Thesis]
+
+
+            # \end{document}
+            # """
+
+            # Now create the prompt using the template
+            # prompt = f"""
+            # IMPORTANT:
+            # - You MUST return a COMPLETE LaTeX code
+            # - Do NOT return partial edits, explanations,extra comment,or markdown
+
+            # You are an LLM tasked with improving and structuring the resume for a candidate applying for a job. You need to follow the instructions and **strictly** use the information and references only from the provided context.
+            # `resume_text`:{self.resume_text}
+            # Job Role: {analysis_result["job_role"]}
+            # Job Description: {analysis_result["job_description"]}
+            # `analysis_result`:{analysis_result}
+
+            # Please do the following:
+
+            # 1. Extract the job role, skills, experience, education, contact_info and other relevant details from the provided `resume_text` .
+            # 2. Use this information to fill out the LaTeX resume template below.
+            # 3. Improve the resume by:
+            #     - Adding strong, quantifiable achievements.
+            #     - Highlighting the specified skills for ATS scanning.
+            #     - Addressing all weaknesses identified in `detailed_weaknesses`and incorporating the specific suggestions provided in `improvement_area`.
+            #     - Structuring the example improvements provided above in the resume.
+            #     - Using industry-standard terminology.
+            #     - Ensuring all relevant experience is properly emphasized and formatted from `resume_text` only .
+            #     - Adding measurable outcomes and achievements wherever possible only.
+            #     - Adding or modify those real requirements only that are available in `resume_text` but if not available don't forcefully change or generate
+
+            # The output should only contain the LaTeX code in the correct format shown in latex template below, with **no extra text or comments**. 
+
+            # Here is the LaTeX template:
+            # {latex_template}
+
+            # **Rules/Instructions**:
+            # 1. **Only use the information from `resume_text` and `analysis_result`**. If a section is not present (e.g., no experience or certifications), **skip that section entirely**. 
+            # 2. **Extract job role, skills, experience, education, projects, certifications, achievements**, etc., only from the provided inputs.
+            # 3. **Do not include any additional explanation, comments, or text.** The output should be clean, valid LaTeX code only.
+            # """
+
+
+            ###########################################################################################################################################################################
+            # prompt = f"""
+            #     YOU ARE A STRICT RESUME FORMATTER. MUST FOLLOW THE RULES AND INSTRUCTIONS STRICTLY. YOUR ONLY JOB IS TO EXTRACT AND REPHRASE EXISTING CONTENT FROM THE RESUME — YOU MUST NEVER ADD, INVENT, OR INFER ANYTHING.
+
+            #     Original Resume Text:
+            #     \"\"\"{self.resume_text}\"\"\"
+
+            #     Job Role (for keyword highlighting only): {analysis_result.get('job_role', '')}
+            #     Missing Skills (do NOT add them in latex code): {analysis_result.get('missing_skills', [])}
+
+            #     CRITICAL RULES — VIOLATE ANY AND YOU FAIL:
+            #     - DO NOT change education degrees, majors, or universities.
+            #     - DO NOT add any numbers,score,marks, percentages, metrics, accuracy, F1-score, improvements (e.g., 94%, 30%, 0.92) unless they are EXPLICITLY written in the original resume.
+            #     - DO NOT mention tools or frameworks not explicitly listed (e.g., no PyTorch, TensorFlow, CNN, BERT if not in original).
+            #     - DO NOT create new projects, bullets, or achievements.
+            #     - You may ONLY:
+            #         - Rephrase existing bullets with stronger action verbs (e.g., "Built" → "Developed and implemented").
+            #         - Bold skills that appear in the original resume AND are relevant to the job role (use \\textbf{{Skill}}).
+            #         - Reorder bullets slightly for better flow.
+            #         - Copy education, contact, dates, titles EXACTLY.
+            #     - If a section has no content → replace its placeholder with nothing (delete the section).
+            #     - Use the original text almost verbatim where possible.
+
+            #     REPLACE THE PLACEHOLDERS IN THE TEMPLATE BELOW WITH REAL EXTRACTED CONTENT ONLY:
+
+            #     [EXTRACTED_PERSONAL_DETAIL] → Full name from resume and Email | Phone | LinkedIn | GitHub (with proper \\href for links)
+            #     [SKILLS_SECTION] → \\section*{{Technical Skills}} followed by categorized skills EXACTLY as in resume, with minor rephrasing
+            #     [EXPERIENCE_SECTION] → extract the experience from the resume if not present remove experience section
+            #     [PROJECTS_SECTION] → Each project with name, technologies (in parentheses), year, and ORIGINAL bullets (rephrased only) and  Bold/highlight each category in [Categories:]
+            #     [ACHIEVEMENTS_SECTION] → Exact achievements with dates and descriptions
+            #     [EDUCATION_SECTION] → Exact degrees, universities, years — NO CHANGES
+            #     [THESIS_SECTION] → Thesis title and bullets only if available in resume
+            #     [CERTIFICATIONS_SECTION] → highlight the certificate only if available in resume
+            #     [OPEN SOURCE CONTRIBUTION] → highlight contribution only if available in resume 
+
+            #     *INSTRUCTION*:
+            #     - dont change the format of latex template(like positions of each and every \\vspace{{-10pt}} ,\\noindent\\rule{{\\linewidth}}{{0.4pt}},\\section*{{[Experience]}}...etc),only use them as it is to fill info with given instructions and rules 
+            #     - each sections have follow these 3 rules you have to consider and not to fail
+            #         - [<BOLD TEXT>]: represent different section name use to identify correct sections below which its latex code is define eg. [SKILLS_SECTION],[EXPERIENCE_SECTION]... etc
+            #         - [<Normal Text>]: use to put/inject the dynamic details or "Content's information" from resume/content to the latex code template eg. [Project Title],[Thesis Title]... etc
+            #         - use → to specifies the following steps/instruction for every section has to follow eg. → One single line with hyperlinks,→ Format similar to projects: title + date + bullets... etc
+
+            #     LaTeX Template:
+
+            #     \\documentclass[a4paper,12pt]{{article}}
+            #     \\usepackage[margin=1in]{{geometry}}
+            #     \\usepackage{{hyperref}}
+            #     \\usepackage{{enumitem}}
+
+            #     \\begin{{document}}
+
+            #     [EXTRACTED_PERSONAL_DETAIL]
+            #     \\vspace{{-10pt}}  
+            #     \\begin{{center}}
+            #         \\Huge \\textbf{{[Candidate Name]}} \\\\ 
+            #         \\small
+            #         \\href{{[mailto:email@example.com]}}{{[email@example.com]}} \\ \\texttt{{|}}\\ [9999999999] \\ \\texttt{{|}}\\ \\ \\href{{[https://www.linkedin.com/in/candidate]}}{{[candidate_linkedin]}} \\ \\texttt{{|}}\\ \\ \\href{{[https://github.com/candidate]}}{{[candidate_github]}}
+            #     \\end{{center}}
+            #     → Candidate's full name from the top or header.
+            #     → One single line with hyperlinks
+            #     → If any missing → omit it. Use "None" only if absolutely no contact info
+
+            #     \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #     [SKILLS_SECTION]
+            #     \\vspace{{-10pt}} 
+            #     \\section*{{[Technical Skills]}}
+            #     → Group into logical categories if present (e.g., Programming Languages, Frameworks & Tools, etc.)
+            #     → Format as:
+            #     \\noindent \\textbf{{[Category:]}} [Skill1, Skill2, Skill3] \\\\
+            #     → If no categories → one flat list.
+
+            #     \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #     [EXPERIENCE_SECTION]
+            #     \\vspace{{-10pt}} 
+            #     \\section*{{[Experience]}}
+            #     → For each job:
+            #     \\noindent \\textbf{{[Job Title]}}, [Company Name] \\hfill {{[Start Year – End Year]}}  \\\\ 
+            #     \\vspace{{-8pt}} 
+            #     \\begin{{itemize}}[left=0pt, label=\\textbullet, itemsep=5pt]
+            #     \\vspace{{-8pt}} 
+            #         \\item [Rephrased bullet... ]
+            #         \\vspace{{-8pt}} 
+            #     \\end{{itemize}}
+
+            #     \\noindent\\rule{{\\linewidth}}{{0.4pt}} 
+
+            #     [PROJECTS_SECTION]
+            #     \\vspace{{-10pt}} 
+            #     \\section*{{[Projects]}}
+            #     → For each project:
+            #     \\noindent \\textbf{{[Project Title]}} \\\\ 
+            #     \\begin{{itemize}}[left=0pt, label=\\textbullet, itemsep=5pt]
+            #     \\vspace{{-8pt}} 
+            #         \\item [Rephrased bullet with \\textbf{{[skills]}} highlighted] 
+            #         \\vspace{{-8pt}} 
+            #     \\end{{itemize}}
+            #     → If technologies listed under project name → put them in italics or parentheses.
+
+
+
+            #     \\noindent\\rule{{\\linewidth}}{{0.4pt}} 
+
+            #     [ACHIEVEMENTS_SECTION]
+            #     \\vspace{{-10pt}} 
+            #     \\section*{{[Achievements & Hackathons]}}
+            #     \\noindent \\textbf{{[Hackathon/Event Name]}}, [Location] \\\\ 
+            #     → Format similar to projects: title + date + bullets.
+
+
+            #     \\noindent\\rule{{\\linewidth}}{{0.4pt}} 
+
+            #     [EDUCATION_SECTION]:
+            #     \\vspace{{-10pt}} 
+            #     \\section*{{[Education]}}
+            #     → For each degree:
+            #     \\noindent \\textbf{{[Degree Title]}} \\hfill {{[Start Year – End Year]}} \\\\ 
+            #     [Institution Name] \\\\ 
+
+            #     \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #     [THESIS_SECTION]
+            #     \\vspace{{-10pt}} 
+            #     \\section*{{[Thesis]}}
+            #     \\noindent \\textbf{{[Thesis Title]}} \\hfill {{[Start Year – End Year]}}\\\\ 
+            #     → Title, supervisor, bullets.
+                
+
+            #     \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #     [CERTIFICATIONS_SECTION]
+            #     \\vspace{{-10pt}} 
+            #     \\section*{{[Certifications]}}
+            #     \\noindent \\textbf{{[Certification Title]}} \\hfill \\textbf{{[Certification Date]}} \\\\
+                
+            #     \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #     [OPEN SOURCE CONTRIBUTION]
+            #     \\vspace{{-10pt}} 
+            #     \\section*{{[Open Source Contributions]}}
+            #     \\noindent \\textbf{{[Project Name or Repository]}} \\hfill \\textbf{{[Contribution Date]}} \\\\
+            #     → Format similar to projects: title + date + bullets.
+
+            #     \\end{{document}}
+            
+
+            #     OUTPUT ONLY THE VALID WORKING FINAL LaTeX CODE. 
+            #     NO explanations, NO markdown, NO partial code, NO extra text,NO Hallucination.
+            #     If you cannot fill a section with real data → remove that entire section/placeholder.
+            #     """
+            ###########################################################################################################################################################################
+
+            prompt = f"""
+                    YOU ARE A DETERMINISTIC RESUME FORMATTER AND COPY-EDITOR.
+
+                    YOU ARE NOT AN IMPROVER, NOT AN OPTIMIZER, NOT A CREATOR.
+                    YOU ARE ONLY ALLOWED TO COPY, LIGHTLY REPHRASE, AND REFORMAT TEXT THAT EXISTS VERBATIM IN THE RESUME.
+
+                    IF YOU ADD EVEN ONE WORD, TOOL, METRIC, DATE, DEGREE, TITLE, SKILL, SUPERVISOR, TECHNOLOGY, OR IDEA
+                    THAT DOES NOT APPEAR IN THE RESUME TEXT BELOW — THE OUTPUT IS INVALID.
+
+                    ========================
+                    SOURCE OF TRUTH — RESUME
+                    ========================
+                    \"\"\"{self.resume_text}\"\"\"
+
+                    ========================
+                    HARD CONSTRAINTS (ABSOLUTE)
+                    ========================
+                    - You MUST treat the resume text as the ONLY source of truth.
+                    - You MUST NOT infer missing years, supervisors, locations, institutions, or outcomes.
+                    - You MUST NOT normalize or “complete” partial information.
+                    - You MUST NOT replace missing values with placeholders like [Year – Year], None, N/A, or similar.
+                    - If any data is missing → DELETE THAT LINE OR ENTIRE SECTION.
+                    - DO NOT mention tools, frameworks, APIs, models, metrics, cloud services, or libraries unless they are written EXACTLY in the resume.
+                    - DO NOT introduce AWS, TensorFlow, supervisors, scores, rankings, accuracy, F1, percentages, or performance claims unless explicitly present.
+                    - DO NOT change degree names, institute names, project titles, or event names.
+                    - DO NOT summarize, extend, or generalize bullets.
+
+                    ========================
+                    CRITICAL CONTACT RULE
+                    ========================
+                    - CONTACT INFORMATION (email, phone, LinkedIn, GitHub) MUST APPEAR ONLY ONCE.
+                    - CONTACT INFORMATION MUST APPEAR ONLY INSIDE THE CENTER BLOCK.
+                    - DO NOT output contact details anywhere else.
+                    - If a contact field is missing → omit ONLY that field.
+
+                    ========================
+                    SECTION CREATION GATE (CRITICAL)
+                    ========================
+                    A SECTION MAY BE CREATED **ONLY IF** THE RESUME TEXT CONTAINS AN EXPLICITLY LABELED SECTION
+                    WITH A MATCHING OR EQUIVALENT TITLE.
+
+                    STRICT RULES:
+                    - EXPERIENCE SECTION:
+                    Create ONLY if the resume explicitly contains a section labeled:
+                    "Experience", "Work Experience", "Professional Experience", or "Employment".
+                    PROJECT CONTENT MUST NEVER BE RECLASSIFIED AS EXPERIENCE.
+
+                    - CERTIFICATIONS SECTION:
+                    Create ONLY if the resume explicitly contains a section labeled:
+                    "Certifications", "Certificates", or "Professional Certifications".
+                    DO NOT treat courses, workshops, hackathons, or participation as certifications.
+
+                    - THESIS SECTION:
+                    Create ONLY if the resume explicitly contains a section labeled "Thesis" or "Dissertation".
+
+                    - OPEN SOURCE CONTRIBUTIONS:
+                    Create ONLY if explicitly labeled as "Open Source", "Open Source Contributions",
+                    or similar.
+
+                    - IF A SECTION HEADER DOES NOT EXIST IN THE RESUME → DELETE THAT ENTIRE SECTION
+                    INCLUDING ITS HEADING AND RULE LINE.
+
+                    ========================
+                    ALLOWED OPERATIONS (ONLY THESE)
+                    ========================
+                    You may ONLY:
+                    - Rephrase existing bullet points using stronger action verbs WITHOUT adding new meaning.
+                    - Fix spacing, punctuation, or LaTeX escaping.
+                    - Bold skills that ALREADY EXIST in the resume (\\textbf{{Skill}}).
+                    - Reorder bullets within the SAME section without changing content.
+                    - Convert plain text into valid LaTeX syntax.
+
+                    ========================
+                    LATEX TEMPLATE (IMMUTABLE)
+                    ========================
+                    You MUST use the following LaTeX structure EXACTLY.
+                    DO NOT change spacing, commands, section order, or formatting.
+                    ONLY replace placeholders with real extracted text OR delete the entire block.
+
+                    \\documentclass[a4paper,12pt]{{article}}
+                    \\usepackage[margin=1in]{{geometry}}
+                    \\usepackage{{hyperref}}
+                    \\usepackage{{enumitem}}
+
+                    \\begin{{document}}
+
+                    \\vspace{{-10pt}}  
+                    \\begin{{center}}
+                        \\Huge \\textbf{{[Candidate Name]}} \\\\ 
+                        \\small
+                        \\href{{mailto:[email]}}{{[email]}}
+                        \\texttt{{|}} [phone]
+                        \\texttt{{|}} \\href{{[linkedin_url]}}{{LinkedIn}}
+                        \\texttt{{|}} \\href{{[github_url]}}{{GitHub}}
+                    \\end{{center}}
+
+                    \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+                    [SKILLS_SECTION]
+                    \\vspace{{-10pt}}
+                    \\section*{{Technical Skills}}
+
+                    \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+                    [EXPERIENCE_SECTION]
+                    \\vspace{{-10pt}}
+                    \\section*{{Experience}}
+
+                    \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+                    [PROJECTS_SECTION]
+                    \\vspace{{-10pt}}
+                    \\section*{{Projects}}
+
+                    \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+                    [ACHIEVEMENTS_SECTION]
+                    \\vspace{{-10pt}}
+                    \\section*{{Achievements \\& Hackathons}}
+
+                    \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+                    [EDUCATION_SECTION]
+                    \\vspace{{-10pt}}
+                    \\section*{{Education}}
+
+                    \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+                    [THESIS_SECTION]
+                    \\vspace{{-10pt}}
+                    \\section*{{Thesis}}
+
+                    \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+                    [CERTIFICATIONS_SECTION]
+                    \\vspace{{-10pt}}
+                    \\section*{{Certifications}}
+
+                    \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+                    [OPEN_SOURCE_SECTION]
+                    \\vspace{{-10pt}}
+                    \\section*{{Open Source Contributions}}
+
+                    \\end{{document}}
+
+                    ========================
+                    FINAL OUTPUT RULE
+                    ========================
+                    - OUTPUT ONLY VALID, COMPILABLE LaTeX CODE.
+                    - NO explanations.
+                    - NO comments.
+                    - NO markdown.
+                    - NO placeholders.
+                    - NO hallucinated content.
+                    - IF A SECTION IS NOT EXPLICITLY PRESENT IN THE RESUME → DELETE IT COMPLETELY.
+                    """
+
+
+            try:
+                # Step 1: Invoke LLM with the given prompt
+                response = safe_llm_invoke(self.llm, prompt)
+                
+                # Step 2: Extract the LaTeX-formatted resume text
+                print("✅ llm response of latex code")
+                improved_resume = response.content.strip() # Remove unnecessary spaces
+                # Step 3: Validate the LaTeX format
+                if not improved_resume.startswith(r"\documentclass") or not improved_resume.endswith(r"\end{document}"):
+                    print("❌ Generated content is not in valid LaTeX format")
+                    raise ValueError("Generated content is not in valid LaTeX format.")
+
+                # Step 5: Return the LaTeX resume content
+                print("✅ generate latex code succesfully")
+                print(improved_resume)
+                return improved_resume
+
+            except Exception as e:
+                # Step 6: Error handling
+                print(f"❌Error generating improved resume llm problem: {e}")
+                return "Error generating improved resume llm problem . Please try again."
+        except Exception as e:
+            print(f"❌Error generating latex code: {e}")
+            return "Error generating latex code. Please try again."
+        
+
+    def verify_and_correct_latex_resume(self, improved_resume, analysis_result,template):
+        """Verify and correct the LaTeX resume by cross-referencing with the original resume data."""
+        
+        # Define the verification and correction prompt
+        prompt = f"""
+        IMPORTANT:
+            - You MUST return a COMPLETE LaTeX document
+            - Output MUST start with \\hdocumentclass
+            - Output MUST end with \\end{{document}}
+            - Do NOT return partial edits, explanations, or markdown
+            - If no changes are required, return the original LaTeX unchanged
+
+        You are a language model tasked with verifying and correcting a LaTeX code resume. The resume has been automatically generated by ai tool-"Improved Resume generator" based on the provided `resume_text` and `analysis_result`. Your task is to **cross-verify** the LaTeX code resume content and make any necessary corrections.
+
+        Instructions:
+        1. Review the LaTeX code resume provided below and ensure it **accurately reflects** the information in `resume_text` and `analysis_result`.
+        2. Specifically, do the following:
+            - **Ensure all sections are present and correctly labeled** (e.g., Experience, Skills, Education, Projects, Achievements, etc.).
+            - **Ensure the content within each section** (e.g., job responsibilities, achievements, etc.) **matches the information** in `resume_text` and `analysis_result`. Cross-reference skills, job roles, responsibilities, achievements, and education.
+            - **Ensure that no new content, fabricated achievements, or hallucinated details** are added to the LaTeX code resume. If any content in the LaTeX code does not exist in the `resume_text` or `analysis_result`, remove it or replace it with the correct information.
+            - **Modify the LaTeX content if any discrepancies are found** (e.g., if a skill or achievement in the LaTeX code resume was not mentioned in the original data, remove or update it).
+            - If any **missing sections** or incorrect details are found in the LaTeX code resume, correct them based on the original resume data.
+
+        LaTeX code Resume:
+        improved_resume={improved_resume}
+
+        Original Resume Data:
+        Resume Text: {self.resume_text}
+        Comparison result with Job description
+        Analysis Result: {analysis_result}
+
+        Output:
+        - **If the LaTeX code resume is correct and matches the original resume data**, simply return the original LaTeX code resume.
+        - **If any corrections are needed**, update the content only in LaTeX code to ensure all content is correct. Provide the updated LaTeX code with corrections.
+        - **Do not add new sections or content that doesn't exist in the original data.** Only modify or remove content that is incorrect or fabricated.
+
+        **Return the LaTeX code with the corrected content in template skeleton-{template} and return the same output format as "improved_resume"**.
+        """
+
+        try:
+            # Step 1: Invoke LLM with the verification and correction prompt
+            response = safe_llm_invoke(self.llm, prompt)
+            
+            # Step 2: Extract the updated LaTeX content
+            corrected_resume = self.clean_latex(response.content.strip())
+            
+            if not corrected_resume:
+                raise ValueError("The LLM response did not return any LaTeX code.")
+            
+            # Step 4: Validate the LaTeX format
+            if not corrected_resume.startswith(r"\documentclass") or not corrected_resume.endswith(r"\end{document}"):
+                raise ValueError("The corrected LaTeX content is not valid LaTeX format.")
+            
+            # Step 5: Save the LaTeX resume to a temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.tex', mode='w', encoding='utf-8') as tmp:
+                tmp.write(corrected_resume)
+                self.improved_resume_path = tmp.name  # Save the path to the file for later use
+            
+            # Step 3: Return the corrected LaTeX code
+            print("✅ LaTeX resume has been verified and corrected.")
+            return corrected_resume
+
+        except Exception as e:
+            raise ValueError(f"Error during LaTeX resume verification and correction: {e}")
+            return improved_resume
+
+    def clean_latex(self,text: str) -> str:
+        start = text.find(r"\documentclass")
+        end = text.rfind(r"\end{document}")
+        if start != -1 and end != -1:
+            return text[start:end + len(r"\end{document}")]
+        return text
+
+ 
+    
 
 ########################################################################################################################################################################################################
 
@@ -1178,6 +1708,7 @@ class Implement:
     def analyze_resume(self,resume_file,role=None,custom_jd=None):
         """Analyze the resume with the agent"""
         return self.agent.analyze_system(resume_file,role,custom_jd)
+    
         
     def ask_question(self,question):
         """Ask a question about the resume"""

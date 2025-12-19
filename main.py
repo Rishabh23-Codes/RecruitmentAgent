@@ -7,6 +7,55 @@ import PyPDF2
 import docx
 from datetime import datetime,timedelta
 from ui_utils import role_requirements,resume_qa_section
+import subprocess
+import base64
+from pathlib import Path
+
+def render_latex_to_pdf(latex_code):
+        try:
+            # Define the path to your LaTeX compiler (xelatex or any other compiler)
+            xelatex_path = "/usr/local/texlive/2025basic/bin/universal-darwin/xelatex"  # Adjust this path accordingly
+            
+            # Create a temporary directory to store LaTeX file and PDF output
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                tex_file = Path(tmpdirname) / "resume.tex"
+                pdf_file = Path(tmpdirname) / "resume.pdf"
+
+                # Step 1: Write LaTeX code to a temporary .tex file
+                tex_file.write_text(latex_code)
+
+                # Step 2: Compile the LaTeX code using xelatex
+                result = subprocess.run(
+                    [xelatex_path, "-interaction=nonstopmode", str(tex_file)],
+                    cwd=tmpdirname,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+
+                # Step 3: Capture LaTeX Compilation Error (if any)
+                error = result.stderr.decode('utf-8')
+
+                if error:
+                    st.text_area("LaTeX Compilation Error", error)
+
+                # Step 4: Read the compiled PDF
+                pdf_bytes = pdf_file.read_bytes()
+
+                # Step 5: Convert PDF to Base64 for inline rendering in Streamlit
+                pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
+                st.markdown(
+                    f'<iframe src="data:application/pdf;base64,{pdf_base64}" width="1350" height="1000"></iframe>',
+                    unsafe_allow_html=True
+                )
+
+                # Step 6: Allow the user to download the compiled PDF
+                st.download_button("Download Resume PDF", pdf_bytes, file_name="resume.pdf")
+
+        except subprocess.CalledProcessError as e:
+            st.error(f"Failed to compile PDF. Check your LaTeX code.\nError: {e}")
+        except FileNotFoundError:
+            st.error("xelatex not found. Make sure BasicTeX is installed and the path is correct.")
 
 # Create directories if they don't exist
 os.makedirs("agents", exist_ok=True)
@@ -184,14 +233,15 @@ with tabs[0]:
             ######################################################################################################################################
                         
                         resume_analyser=resources["analysis_agent"]
+                        latex_code=""
 
                         if custom_jd:
                             with tempfile.NamedTemporaryFile(delete=False,suffix=f".{custom_jd.name.split('.')[-1]}") as temp_file:
                                 temp_file.write(custom_jd.getbuffer())
                                 temp_path=temp_file.name
-                            analysis_result,extracted_text=resume_analyser.analyze_resume(resume_file,custom_jd=custom_jd)
+                            analysis_result,extracted_text,latex_code=resume_analyser.analyze_resume(resume_file,custom_jd=custom_jd)
                         else:
-                            analysis_result,extracted_text=resume_analyser.analyze_resume(resume_file,role=role_requirements[role])
+                            analysis_result,extracted_text,latex_code=resume_analyser.analyze_resume(resume_file,role=role_requirements[role])
                         try:
                             if extracted_text:
 
@@ -316,7 +366,7 @@ with tabs[0]:
         st.markdown("---")
 
         # Create tabs for different views of resume data
-        resume_tabs=st.tabs(["Summary", "Skills & Experience", "Analysis", "Raw Text"])
+        resume_tabs=st.tabs(["Summary", "Skills & Experience", "Analysis", "Improved Resume"])
 
         # Tab1: Summary view
         with resume_tabs[0]:
@@ -333,12 +383,12 @@ with tabs[0]:
             else:
                 st.info("No detailed analysis available. Please re-upload your resume to generate an analysis.")
 
-        # Tab 4: Raw Text
+        # Tab 4: Improved resume
         with resume_tabs[3]:
-            if "raw_text" in st.session_state.resume_data:
-                st.text_area("Extracted Text", st.session_state.resume_data["raw_text"], height=400, disabled=True)
+            if latex_code:
+                render_latex_to_pdf(latex_code=latex_code)    
             else:
-                st.info("Raw text not available.")
+                st.info("Improved resume not available.")
 
         # Add a section to explain resume improvement suggestions
             ########################################################################################################################################################################
