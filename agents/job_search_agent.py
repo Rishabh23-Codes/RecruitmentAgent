@@ -3,6 +3,7 @@ from utils.job_scraper import JobScrapper
 from utils.serp_api_searcher import SerpApiSearcher
 from config import GROQ_API_KEY,LLM_MODEL,JOB_PLATFORMS
 from langchain_ollama.chat_models import ChatOllama
+import time
 
 class JobSearchAgent:
     """Agent for searching and matching jobs."""
@@ -13,7 +14,7 @@ class JobSearchAgent:
         self.job_scraper=JobScrapper()
         self.serp_api_searcher=SerpApiSearcher()
 
-    def search_jobs(self,resume_data,keywords,location,platforms=None,count=5):
+    def search_jobs(self,resume_data,keywords,search_term,location,platforms=None,count=5,days_ago=2,job_type="Fulltime"):
         """
         Search for jobs based on resume and keywords.
         
@@ -27,37 +28,66 @@ class JobSearchAgent:
         Returns:
             list: List of job dictionaries
         """
-        if not platforms:
-            platforms=JOB_PLATFORMS
 
-        # Try the serpapi approach first (this will have real links)
-        api_jobs=[]
+        target_platforms = platforms or JOB_PLATFORMS
+        final_results = []
 
-        for platform in platforms:
-            #Use Serpapi to search for real jobs
-            platform_jobs=self.serp_api_searcher.search_jobs(
-                keywords=keywords,
-                location=location,
-                platform=platform,
-                count=count
-            )
-            api_jobs.extend(platform_jobs)
-        # If we got results from serpapi use those
-        if api_jobs:
-            return api_jobs
+        # results = self.job_scraper.search_jobs(keywords,search_term,location,target_platforms, count,days_ago,job_type=job_type)
+        # final_results.extend(results)
+
+        for platform in target_platforms:
+            # 1. TIER 1: Try Real Scraping (JobSpy)
+            time.sleep(4.0)
+            results = self.job_scraper.search_jobs(keywords,search_term,location, [platform], count,days_ago,job_type=job_type)
+            
+            # 2. TIER 2: If Scraper fails (returns None), try SerpAPI
+            if results is None:
+                print(f"Scraper blocked for {platform}. Trying SerpAPI fallback...")
+                results = self.serp_api_searcher.search_jobs(keywords, location, platform, count,days_ago)
+            
+            # 3. TIER 3: If both fail, use the platform-specific fake generator
+            if not results:
+                print(f"Real data unavailable for {platform}. Using specific safety net...")
+                results = self.job_scraper.search_jobs(keywords,search_term,location, [platform], count, force_fake=True,days_ago=days_ago,job_type=job_type)  
+            final_results.extend(results)
+        # if not final_results:
+        #     print(f"Real data unavailable for {target_platforms}. Using specific safety net...")
+        #     results = self.job_scraper.search_jobs(keywords,search_term,location,target_platforms, count, force_fake=True,days_ago=days_ago,job_type=job_type)
         
-        # Fallback to scraper if serpapi fails
-        print("SerpAPI search returned no results. Falling back to scraper.")
-        all_jobs=[]
-        for platform in platforms:
-            platform_jobs=self.job_scraper.search_jobs(
-                keywords,
-                location,
-                platform,
-                count
-            )
-            all_jobs.extend(platform_jobs)
-        return all_jobs
+        # final_results.extend(results)
+
+        return final_results
+        # if not platforms:
+        #     platforms=JOB_PLATFORMS
+
+        # # Try the serpapi approach first (this will have real links)
+        # api_jobs=[]
+
+        # for platform in platforms:
+        #     #Use Serpapi to search for real jobs
+        #     platform_jobs=self.serp_api_searcher.search_jobs(
+        #         keywords=keywords,
+        #         location=location,
+        #         platform=platform,
+        #         count=count
+        #     )
+        #     api_jobs.extend(platform_jobs)
+        # # If we got results from serpapi use those
+        # if api_jobs:
+        #     return api_jobs
+        
+        # # Fallback to scraper if serpapi fails
+        # print("SerpAPI search returned no results. Falling back to scraper.")
+        # all_jobs=[]
+        # for platform in platforms:
+        #     platform_jobs=self.job_scraper.search_jobs(
+        #         keywords,
+        #         location,
+        #         platform,
+        #         count
+        #     )
+        #     all_jobs.extend(platform_jobs)
+        # return all_jobs
     
     def get_job_match_analysis(self,resume_data,job_data):
         """

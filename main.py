@@ -155,6 +155,9 @@ if "interview_questions" not in st.session_state:
     st.session_state.interview_questions = None
 if "saved_jobs" not in st.session_state:
     st.session_state.saved_jobs = load_saved_jobs()
+if "latex_code" not in st.session_state:
+    st.session_state.latex_code = ""
+
 
 # Create main navigation tabs
 tabs=st.tabs([
@@ -233,7 +236,7 @@ with tabs[0]:
             ######################################################################################################################################
                         
                         resume_analyser=resources["analysis_agent"]
-                        latex_code=""
+                        
 
                         if custom_jd:
                             with tempfile.NamedTemporaryFile(delete=False,suffix=f".{custom_jd.name.split('.')[-1]}") as temp_file:
@@ -250,6 +253,7 @@ with tabs[0]:
                                 resume_analysis=resume_agent.analyze_resume(analysis_result)
 
                                 #Store resume data and analysis in session state
+                                st.session_state.latex_code = latex_code
                                 st.session_state.resume_data=analysis_result
                                 st.session_state.resume_data["analysis"]=resume_analysis
                                 st.session_state.resume_data["raw_text"]=extracted_text
@@ -385,8 +389,8 @@ with tabs[0]:
 
         # Tab 4: Improved resume
         with resume_tabs[3]:
-            if latex_code:
-                render_latex_to_pdf(latex_code=latex_code)    
+            if st.session_state.latex_code:
+                render_latex_to_pdf(latex_code=st.session_state.latex_code)    
             else:
                 st.info("Improved resume not available.")
 
@@ -444,7 +448,7 @@ with tabs[1]:
         "New York, NY", "San Francisco, CA", "Seattle, WA", "Austin, TX",
         "Boston, MA", "Chicago, IL", "Los Angeles, CA", "Atlanta, GA", "Denver, CO",
         "Bangalore, India", "Hyderabad, India", "Mumbai, India", "Delhi, India",
-        "Pune, India", "Chennai, India", "London, UK", "Berlin, Germany", "Toronto, Canada"
+        "Pune, India", "Chennai, India","India", "London, UK", "Berlin, Germany", "Toronto, Canada"
     ]
 
     # Create search tabs
@@ -595,8 +599,8 @@ with tabs[1]:
             # Advanced filters accordion
             with st.expander("Advance Filters",expanded=False):
                 # Job type selection
-                job_types=["Full-time", "Part-time", "Contract", "Internship", "Remote"]
-                selected_job_types=st.multiselect("Job Types (optional):",job_types,key="job_types")
+                job_types=["Full-time", "Part-time", "Contract", "Internship"]
+                selected_job_types=st.selectbox("Job Types (optional):",job_types,key="job_types")
 
                 # Experience level
                 experience_level=st.select_slider(
@@ -637,11 +641,11 @@ with tabs[1]:
 
             # Add job types to query if selected
             if selected_job_types:
-                search_query+=f" {' '.join(selected_job_types)}"
+                search_query+=f" {selected_job_types}"
 
             # Add experience level to wuery if needed
-            if experience_level!="1-3": # if not default
-                search_query+=f" {experience_level} years"
+            if experience_level: # if not default
+                search_query+=f"experience of {experience_level} years"
 
             # Convert recency to day for API
             recency_days={
@@ -656,7 +660,7 @@ with tabs[1]:
             search_message=f"Searching for {search_query} jobs in {location}"
             search_message+=f" posted within the last {recency}"
             if selected_job_types:
-                search_message+=f" ({', '.join(selected_job_types)})"
+                search_message+=f" ({selected_job_types})"
             
             with st.spinner(search_message):
                 jobs=[]
@@ -696,9 +700,12 @@ with tabs[1]:
                         jobs=job_search_agent.search_jobs(
                             st.session_state.resume_data,
                             search_query,
-                            location,
+                            search_term=keywords,
+                            location=location,
                             platforms=selected_platforms,
-                            count=job_count
+                            count=job_count,
+                            days_ago=days_ago,
+                            job_type=selected_job_types
                         )
                     except Exception as e:
                         st.error(f"Error in job search: {str(e)}")

@@ -14,7 +14,7 @@ LLM_MODEL="qwen3:4b-instruct"
 
 # Job search settings
 DEFAULT_JOB_COUNT=5
-JOB_PLATFORMS=["LinkedIn","Indeed","Glassdoor","ZipRecruiter","Monster"]
+JOB_PLATFORMS=["LinkedIn","Indeed","Glassdoor","ZipRecruiter","Naukri"]
 
 COLORS={
     # Primary palette

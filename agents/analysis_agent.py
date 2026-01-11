@@ -479,7 +479,7 @@ class ResumeAnalysisAgent:
             3. Missing Skills: List skills explicitly mentioned in the job description (context_text) that do not appear in the resume skills or experience, ordered in decreasing priority based on their importance in the job description.  
             4. Extracted Skills: All skills explicitly mentioned in the job description ("context_text") irrespective of whether they match the resume.  
             5. Job Role:{role if role else "extract the job role from context_text"}
-            6. Job Description: generate a professional detailed Job description based on {"extracting the skills from: "+role if role else "context_text"}
+            6. Job Description: {"Generate a short and concise professional Job description based on this role: "+role if role else "Extract the short and concise job description from the 'context_text' only"}
 
             Example:  
 
@@ -1452,6 +1452,21 @@ class ResumeAnalysisAgent:
                     \"\"\"{self.resume_text}\"\"\"
 
                     ========================
+                    SECONDARY CONTEXT — JOB DESCRIPTION (NON-AUTHORITATIVE)
+                    ========================
+                    ***{analysis_result.get("job_description","")}***
+
+                    RULES FOR JD CONTEXT:
+                    - The job description is ONLY for understanding emphasis, wording, and terminology.
+                    - The job description is NOT a source of facts.
+                    - You MUST NOT add, invent, or infer any skill, tool, metric, responsibility, or outcome from the job description.
+                    - You MAY rephrase EXISTING resume bullets to better align with job description terminology
+                    ONLY IF the underlying skill or responsibility is ALREADY explicitly present in the resume text.
+                    - If no clear overlap exists between a resume bullet and the job description → DO NOT modify that bullet.
+                    - If alignment is not possible without adding new information → KEEP THE ORIGINAL RESUME WORDING.
+
+
+                    ========================
                     HARD CONSTRAINTS (ABSOLUTE)
                     ========================
                     - You MUST treat the resume text as the ONLY source of truth.
@@ -1465,12 +1480,27 @@ class ResumeAnalysisAgent:
                     - DO NOT summarize, extend, or generalize bullets.
 
                     ========================
-                    CRITICAL CONTACT RULE
+                    CRITICAL CONTACT RULE (STRICT)
                     ========================
-                    - CONTACT INFORMATION (email, phone, LinkedIn, GitHub) MUST APPEAR ONLY ONCE.
-                    - CONTACT INFORMATION MUST APPEAR ONLY INSIDE THE CENTER BLOCK.
-                    - DO NOT output contact details anywhere else.
-                    - If a contact field is missing → omit ONLY that field.
+                    - CONTACT INFORMATION MUST APPEAR ONLY ONCE AND ONLY INSIDE THE CENTER BLOCK.
+                    - EACH contact field (email, phone, LinkedIn, GitHub) is OPTIONAL and INDEPENDENT.
+                    - If a contact field does NOT exist in the resume text:
+                    → DELETE the ENTIRE LaTeX command AND any adjacent separators.
+                    - NEVER output empty \\href{{}}, empty \\texttt{{}}, or placeholder URLs.
+                    - It is VALID to output a center block containing ONLY the candidate name.
+
+
+                    ========================
+                    LATEX VALIDITY ENFORCEMENT (CRITICAL)
+                    ========================
+                    - EMPTY LaTeX commands are FORBIDDEN.
+                    - You MUST NEVER output commands with empty arguments such as:
+                    \\href{{}}{{ }}, \\href{{mailto:}}{{ }}, \\textbf{{}}, \\item{{}}, or empty table cells.
+                    - If a field is missing, you MUST DELETE the ENTIRE LaTeX LINE that would contain it.
+                    - DO NOT preserve separators (|) if an adjacent field is deleted.
+                    - DO NOT output placeholder URLs (e.g., https://linkedin.com/in/, https://github.com/).
+                    - If ALL contact fields are missing, output ONLY the candidate name in the center block.
+
 
                     ========================
                     SECTION CREATION GATE (CRITICAL)
@@ -1508,6 +1538,16 @@ class ResumeAnalysisAgent:
                     - Bold skills that ALREADY EXIST in the resume (\\textbf{{Skill}}).
                     - Reorder bullets within the SAME section without changing content.
                     - Convert plain text into valid LaTeX syntax.
+
+                    ========================
+                    FINAL SELF-CHECK (MANDATORY)
+                    ========================
+                    Before outputting:
+                    - Scan the entire LaTeX.
+                    - If ANY command contains empty {{}} → DELETE that line.
+                    - If ANY section has no content → DELETE the section AND its rule line.
+                    Only then output the LaTeX.
+
 
                     ========================
                     LATEX TEMPLATE (IMMUTABLE)
@@ -1594,6 +1634,231 @@ class ResumeAnalysisAgent:
                     - NO hallucinated content.
                     - IF A SECTION IS NOT EXPLICITLY PRESENT IN THE RESUME → DELETE IT COMPLETELY.
                     """
+            # prompt = f"""
+            #             YOU ARE A STRICT, DETERMINISTIC, FAIL-SAFE RESUME FORMATTER AND COPY-EDITOR.
+
+            #             YOU OPERATE IN A HIGH-RISK SETTING.
+            #             ANY FABRICATION, INFERENCE, OR FORMATTING ERROR INVALIDATES THE OUTPUT.
+
+            #             YOU ARE NOT A WRITER.
+            #             YOU ARE NOT AN OPTIMIZER.
+            #             YOU ARE NOT AN ADVISOR.
+            #             YOU ARE NOT ALLOWED TO CREATE, INFER, COMPLETE, IMPROVE, OR INVENT CONTENT.
+
+            #             =================================================
+            #             PRIMARY SOURCE OF TRUTH (FACTS ONLY)
+            #             =================================================
+            #             RESUME TEXT (THE ONLY FACTUAL SOURCE):
+            #             \"\"\"{self.resume_text}\"\"\"
+
+            #             IF A FACT DOES NOT APPEAR VERBATIM IN THIS TEXT → IT DOES NOT EXIST.
+
+            #             =================================================
+            #             SECONDARY INPUTS (READ-ONLY GUIDANCE)
+            #             =================================================
+            #             THE FOLLOWING DATA IS PROVIDED STRICTLY FOR PRIORITIZATION,
+            #             ORDERING, AND EMPHASIS DECISIONS ONLY.
+
+            #             IT MUST NEVER INTRODUCE FACTS.
+
+            #             ANALYSIS RESULT (NON-AUTHORITATIVE):
+            #             {analysis_result}
+
+            #             HARD RULES FOR SECONDARY INPUTS:
+            #             - analysis_result IS NOT A FACT SOURCE.
+            #             - job_description, matching_skills MAY ONLY:
+            #             • influence bullet ordering
+            #             • influence which EXISTING skills to bold
+            #             - missing_skills, improvement_area, weaknesses, suggestions, examples,
+            #             scores, selection flags MUST NEVER APPEAR IN OUTPUT.
+            #             - contact_info MUST MATCH RESUME EXACTLY OR BE IGNORED.
+
+            #             =================================================
+            #             JOB DESCRIPTION CONTROL (SAFE MODE)
+            #             =================================================
+            #             JOB DESCRIPTION TEXT:
+            #             \"\"\"{analysis_result.get("job_description","")}\"\"\"
+
+            #             JD USAGE IS RESTRICTED TO:
+            #             - PRIORITIZATION: Move relevant bullets earlier within the SAME section.
+            #             - EMPHASIS: Bold ONLY resume-written skills that also appear in JD.
+
+            #             JD MUST NEVER:
+            #             - Add new skills, tools, metrics, or phrasing.
+            #             - Strengthen claims, impact, or responsibility.
+            #             - Reword unrelated bullets.
+
+            #             =================================================
+            #             ABSOLUTE HARD CONSTRAINTS (ZERO TOLERANCE)
+            #             =================================================
+            #             - EVERY OUTPUT TOKEN MUST BE TRACEABLE TO RESUME TEXT.
+            #             - DO NOT infer, normalize, or complete partial information.
+            #             - DO NOT fabricate education, experience, certifications, dates, supervisors.
+            #             - DO NOT introduce metrics, results, or outcomes.
+            #             - DO NOT convert projects into experience.
+            #             - DO NOT add placeholders like [Year], None, N/A.
+            #             - IF INFORMATION IS MISSING → OMIT IT COMPLETELY.
+
+            #             =================================================
+            #             SECTION CREATION GATE (NON-NEGOTIABLE)
+            #             =================================================
+            #             CREATE A SECTION ONLY IF THE RESUME CONTAINS AN EXPLICIT HEADER.
+
+            #             STRICT HEADER MATCHING:
+            #             - EXPERIENCE:
+            #             Only if header contains: Experience / Work Experience / Employment.
+            #             - PROJECTS:
+            #             Only if explicitly labeled Projects.
+            #             - EDUCATION:
+            #             Only if explicitly labeled Education.
+            #             - CERTIFICATIONS:
+            #             Only if explicitly labeled Certifications / Certificates.
+            #             - THESIS:
+            #             Only if explicitly labeled Thesis / Dissertation.
+            #             - OPEN SOURCE:
+            #             Only if explicitly labeled Open Source.
+
+            #             NO HEADER → NO SECTION (DELETE HEADING + RULE).
+
+            #             =================================================
+            #             EXTREME INPUT HANDLING (FAIL-SAFE MODE)
+            #             =================================================
+            #             HANDLE THESE CASES EXPLICITLY:
+
+            #             1. EMPTY OR MALFORMED RESUME:
+            #             - Output ONLY a minimal LaTeX document with name if present.
+            #             - Otherwise output an empty document body (valid LaTeX).
+
+            #             2. DUPLICATE DATA:
+            #             - Remove duplicates while preserving original wording.
+
+            #             3. CONTRADICTORY DATA:
+            #             - Do NOT resolve conflicts.
+            #             - Keep ONLY the first occurrence.
+
+            #             4. SINGLE-LINE RESUME:
+            #             - Preserve text as-is, formatted minimally.
+
+            #             5. NON-STANDARD HEADERS:
+            #             - Do NOT guess section meaning.
+            #             - Ignore unrecognized headers.
+
+            #             6. OVERLY LONG BULLETS:
+            #             - Rephrase ONLY for grammar/clarity.
+            #             - DO NOT compress or summarize content.
+
+            #             7. NO MATCHING JD SKILLS:
+            #             - Do NOT force JD alignment.
+            #             - Output resume content unchanged.
+
+            #             =================================================
+            #             LATEX SAFETY & VALIDATION RULES
+            #             =================================================
+            #             - OUTPUT MUST COMPILE WITHOUT ERRORS.
+            #             - Escape LaTeX special characters: %, &, _, #, $, {{, }}.
+            #             - Ensure all \\begin{{}} have matching \\end{{}}.
+            #             - Ensure all \\href{{}} URLs are valid and closed.
+            #             - Never leave dangling LaTeX commands.
+            #             - Never duplicate contact blocks.
+            #             - Maintain consistent spacing and rule lines.
+            #             - Make each category in the Technical Skills section bold or highlighted to clearly differentiate categories from their corresponding details.
+
+            #             =================================================
+            #             ALLOWED OPERATIONS (ONLY THESE)
+            #             =================================================
+            #             You may ONLY:
+            #             - Rephrase bullets using stronger verbs WITHOUT changing meaning.
+            #             - Rephrase ONLY bullets related to JD-matching skills.
+            #             - Leave unrelated bullets unchanged.
+            #             - Bold skills that exist BOTH in resume AND matching_skills.
+            #             - Reorder bullets within the SAME section.
+            #             - Fix grammar, punctuation, LaTeX escaping.
+            #             - Convert plain text into valid LaTeX.
+
+            #             YOU MUST NEVER:
+            #             - Add explanations, summaries, impact, results.
+            #             - Add metrics or outcomes.
+            #             - Add any JD-only terminology.
+
+            #             =================================================
+            #             CONTACT INFORMATION RULE (STRICT)
+            #             =================================================
+            #             - Contact info MUST appear ONCE.
+            #             - Use ONLY what exists in resume text.
+            #             - DO NOT infer missing fields.
+
+            #             =================================================
+            #             LATEX TEMPLATE (IMMUTABLE — DO NOT MODIFY)
+            #             =================================================
+            #             \\documentclass[a4paper,12pt]{{article}}
+            #             \\usepackage[margin=1in]{{geometry}}
+            #             \\usepackage{{hyperref}}
+            #             \\usepackage{{enumitem}}
+
+            #             \\begin{{document}}
+
+            #             \\vspace{{-10pt}}
+            #             \\begin{{center}}
+            #                 \\Huge \\textbf{{[Candidate Name]}} \\\\
+            #                 \\small
+            #                 \\href{{mailto:[email]}}{{[email]}}
+            #                 \\texttt{{|}} [phone]
+            #                 \\texttt{{|}} \\href{{[linkedin_url]}}{{LinkedIn}}
+            #                 \\texttt{{|}} \\href{{[github_url]}}{{GitHub}}
+            #             \\end{{center}}
+
+            #             \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #             [SKILLS_SECTION]
+            #             \\section*{{Technical Skills}}
+
+            #             \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #             [EXPERIENCE_SECTION]
+            #             \\section*{{Experience}}
+
+            #             \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #             [PROJECTS_SECTION]
+            #             \\section*{{Projects}}
+
+            #             \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #             [ACHIEVEMENTS_SECTION]
+            #             \\section*{{Achievements \\& Hackathons}}
+
+            #             \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #             [EDUCATION_SECTION]
+            #             \\section*{{Education}}
+
+            #             \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #             [THESIS_SECTION]
+            #             \\section*{{Thesis}}
+
+            #             \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #             [CERTIFICATIONS_SECTION]
+            #             \\section*{{Certifications}}
+
+            #             \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #             [OPEN_SOURCE_SECTION]
+            #             \\section*{{Open Source Contributions}}
+
+            #             \\end{{document}}
+
+            #             =================================================
+            #             FINAL OUTPUT CONTRACT
+            #             =================================================
+            #             - OUTPUT ONLY VALID, COMPILABLE LaTeX CODE.
+            #             - NO explanations, NO comments, NO markdown.
+            #             - NO placeholders.
+            #             - NO hallucinated content.
+            #             - DELETE ANY SECTION NOT EXPLICITLY PRESENT IN RESUME.
+            #             - IF UNSURE → OMIT, NEVER GUESS.
+            #             """
 
 
             try:

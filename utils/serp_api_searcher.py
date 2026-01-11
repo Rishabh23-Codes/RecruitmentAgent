@@ -108,9 +108,9 @@ class SerpApiSearcher:
                     # Determine platform from extensions or application options
                     job_platform=job.get("via","Unknown")
 
-                    # Filter by platform if specified
-                    if platform and platform.lower() !="all" and platform.lower() not in job_platform.lower():
-                        continue
+                    # # Filter by platform if specified
+                    # if platform and platform.lower() !="all" and platform.lower() not in job_platform.lower():
+                    #     continue
 
 
                     # Create job entry
