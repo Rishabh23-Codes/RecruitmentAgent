@@ -16,6 +16,8 @@ from docling.document_converter import DocumentConverter
 from langchain_ollama.chat_models import ChatOllama
 from ui_utils import role_requirements as require
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+
 
 
 def safe_llm_invoke(llm, prompt, max_retries=3):
@@ -49,6 +51,7 @@ class ResumeAnalysisAgent:
         self.contact_info={"email":"","phone":""}
         # self.llm = ChatGroq(model=LLM_MODEL, api_key=GROQ_API_KEY)
         self.llm=ChatOllama(model=LLM_MODEL,temperature=0)
+        self.embeddings=HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
 
 
     # def extract_text_from_pdf(self,pdf_file):
@@ -143,19 +146,17 @@ class ResumeAnalysisAgent:
     def create_rag_vector_store(self,text):
         """Create a vector store for RAG"""
         text_splitter=RecursiveCharacterTextSplitter(
-            chunk_size=1000,
+            chunk_size=1600,
             chunk_overlap=200,
             length_function=len,
         )
         chunks=text_splitter.split_text(text)
-        embeddings=HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
-        vectorstore=FAISS.from_texts(chunks,embeddings)
+        vectorstore=FAISS.from_texts(chunks,self.embeddings)
         return vectorstore
     
     def create_vector_store(self,text):
         """Create a simpler vector store for skill analysis"""
-        embeddings=HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
-        vectorstore=FAISS.from_texts([text],embeddings)
+        vectorstore=FAISS.from_texts([text],self.embeddings)
         return vectorstore
     
 
@@ -221,9 +222,6 @@ class ResumeAnalysisAgent:
         1. What's missing from the resume regarding this skill?
         2. How could it be improved with specific examples?
         3. What specific action items would make this skill stand out?
-
-        Resume Context:
-        {self.resume_text[:3000]}...
 
         Provide your response in this JSON format:
         [
@@ -453,10 +451,10 @@ class ResumeAnalysisAgent:
             if custom_jd:
                 jd_text=self.extract_text_from_file(custom_jd)
                 jd_vectorstore=self.create_rag_vector_store(jd_text)
-                retriever=jd_vectorstore.as_retriever(search_kwargs={"k": 5})
+                retriever=jd_vectorstore.as_retriever(search_kwargs={"k": 3})
                 query="Extract all technical skills, programming languages, frameworks, tools, cloud platforms, databases, and relevant technologies mentioned in this job description. Include both mandatory and optional skills.For example: ['Python', 'JavaScript', 'React.js', 'Node.js', 'SQL', 'Docker', 'AWS', 'Machine Learning', 'LangChain']."
                 relevant_chunks = retriever.invoke(query)
-                context_text = "\n".join([doc.page_content for doc in relevant_chunks])[:5000]
+                context_text = "\n".join([doc.page_content for doc in relevant_chunks])[:3000]
                 print(f"✅ JD context: {len(relevant_chunks)} chunks")
             elif role_requirements:
                 role = next((key for key, values in require.items() if any(v in values for v in role_requirements)), None)
@@ -609,34 +607,66 @@ class ResumeAnalysisAgent:
 
 
 
-    def analyze_system(self,resume_file,role_requirements=None,custom_jd=None):
-        """Analyze a resume against role requirements or a custom JD"""
-        latex_code=""
-        self.resume_text=self.extract_text_from_file(resume_file)
-        self.rag_vectorstore=self.create_rag_vector_store(self.resume_text)
+    # def analyze_system(self,resume_file,role_requirements=None,custom_jd=None):
+    #     """Analyze a resume against role requirements or a custom JD"""
+    #     latex_code=""
+    #     self.resume_text=self.extract_text_from_file(resume_file)
+    #     self.rag_vectorstore=self.create_rag_vector_store(self.resume_text)
 
-        skills,education,experience=self.extract_info_from_resume(self.resume_text)
-        print(f"🔍 Raw extraction: {len(skills)} skills") 
+    #     skills,education,experience=self.extract_info_from_resume(self.resume_text)
+    #     print(f"🔍 Raw extraction: {len(skills)} skills") 
 
-        analysis=self.compare_resume_jd(skills=skills,experience=experience,education=education,role_requirements=role_requirements,custom_jd=custom_jd)
+    #     analysis=self.compare_resume_jd(skills=skills,experience=experience,education=education,role_requirements=role_requirements,custom_jd=custom_jd)
 
-        analysis["contact_info"]=self.extract_contact_info(self.resume_text)
+    #     analysis["contact_info"]=self.extract_contact_info(self.resume_text)
+    #     print("✅ contact info add")
+
+    #     if analysis and "missing_skills" in analysis and analysis["missing_skills"]:
+    #         self.resume_weaknesses=self.analyze_resume_weaknesses(analysis)
+
+    #         analysis["detailed_weaknesses"]=self.resume_weaknesses
+    #     if analysis:
+    #         latex_code = self.get_improved_resume(analysis)
+    #         if not latex_code:
+    #             print("Error: Latex code generation failed.")
+    #         else:
+    #             print("✅ all necessary requirement complete for latex code generation")            
+
+    #     print("✅ done everything in analyze_system")
+        
+    #     return analysis,self.resume_text,latex_code
+
+    def analyze_system(self, resume_file, role_requirements=None, custom_jd=None):
+        self.resume_text = self.extract_text_from_file(resume_file)
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            fut_rag = executor.submit(self.create_rag_vector_store, self.resume_text)
+            fut_contact = executor.submit(self.extract_contact_info, self.resume_text)
+            fut_extract = executor.submit(self.extract_info_from_resume, self.resume_text)
+
+            skills, education, experience = fut_extract.result()
+            print(f"🔍 Raw extraction: {len(skills)} skills") 
+            self.rag_vectorstore = fut_rag.result()
+            contact_info = fut_contact.result()
+
+        analysis = self.compare_resume_jd(
+            skills=skills,
+            experience=experience,
+            education=education,
+            role_requirements=role_requirements,
+            custom_jd=custom_jd
+        )
+
+        analysis["contact_info"] = contact_info
         print("✅ contact info add")
 
-        if analysis and "missing_skills" in analysis and analysis["missing_skills"]:
-            self.resume_weaknesses=self.analyze_resume_weaknesses(analysis)
+        if analysis.get("missing_skills"):
+            analysis["detailed_weaknesses"] = self.analyze_resume_weaknesses(analysis)
 
-            analysis["detailed_weaknesses"]=self.resume_weaknesses
-        if analysis:
-            latex_code = self.get_improved_resume(analysis)
-            if not latex_code:
-                print("Error: Latex code generation failed.")
-            else:
-                print("✅ all necessary requirement complete for latex code generation")            
-
+        latex_code = self.get_improved_resume(analysis)
         print("✅ done everything in analyze_system")
-        
-        return analysis,self.resume_text,latex_code
+
+        return analysis, self.resume_text, latex_code
 
 
 
@@ -1436,7 +1466,6 @@ class ResumeAnalysisAgent:
             #     If you cannot fill a section with real data → remove that entire section/placeholder.
             #     """
             ###########################################################################################################################################################################
-
             prompt = f"""
                     YOU ARE A DETERMINISTIC RESUME FORMATTER AND COPY-EDITOR.
 
@@ -1452,21 +1481,6 @@ class ResumeAnalysisAgent:
                     \"\"\"{self.resume_text}\"\"\"
 
                     ========================
-                    SECONDARY CONTEXT — JOB DESCRIPTION (NON-AUTHORITATIVE)
-                    ========================
-                    ***{analysis_result.get("job_description","")}***
-
-                    RULES FOR JD CONTEXT:
-                    - The job description is ONLY for understanding emphasis, wording, and terminology.
-                    - The job description is NOT a source of facts.
-                    - You MUST NOT add, invent, or infer any skill, tool, metric, responsibility, or outcome from the job description.
-                    - You MAY rephrase EXISTING resume bullets to better align with job description terminology
-                    ONLY IF the underlying skill or responsibility is ALREADY explicitly present in the resume text.
-                    - If no clear overlap exists between a resume bullet and the job description → DO NOT modify that bullet.
-                    - If alignment is not possible without adding new information → KEEP THE ORIGINAL RESUME WORDING.
-
-
-                    ========================
                     HARD CONSTRAINTS (ABSOLUTE)
                     ========================
                     - You MUST treat the resume text as the ONLY source of truth.
@@ -1480,27 +1494,12 @@ class ResumeAnalysisAgent:
                     - DO NOT summarize, extend, or generalize bullets.
 
                     ========================
-                    CRITICAL CONTACT RULE (STRICT)
+                    CRITICAL CONTACT RULE
                     ========================
-                    - CONTACT INFORMATION MUST APPEAR ONLY ONCE AND ONLY INSIDE THE CENTER BLOCK.
-                    - EACH contact field (email, phone, LinkedIn, GitHub) is OPTIONAL and INDEPENDENT.
-                    - If a contact field does NOT exist in the resume text:
-                    → DELETE the ENTIRE LaTeX command AND any adjacent separators.
-                    - NEVER output empty \\href{{}}, empty \\texttt{{}}, or placeholder URLs.
-                    - It is VALID to output a center block containing ONLY the candidate name.
-
-
-                    ========================
-                    LATEX VALIDITY ENFORCEMENT (CRITICAL)
-                    ========================
-                    - EMPTY LaTeX commands are FORBIDDEN.
-                    - You MUST NEVER output commands with empty arguments such as:
-                    \\href{{}}{{ }}, \\href{{mailto:}}{{ }}, \\textbf{{}}, \\item{{}}, or empty table cells.
-                    - If a field is missing, you MUST DELETE the ENTIRE LaTeX LINE that would contain it.
-                    - DO NOT preserve separators (|) if an adjacent field is deleted.
-                    - DO NOT output placeholder URLs (e.g., https://linkedin.com/in/, https://github.com/).
-                    - If ALL contact fields are missing, output ONLY the candidate name in the center block.
-
+                    - CONTACT INFORMATION (email, phone, LinkedIn, GitHub) MUST APPEAR ONLY ONCE.
+                    - CONTACT INFORMATION MUST APPEAR ONLY INSIDE THE CENTER BLOCK.
+                    - DO NOT output contact details anywhere else.
+                    - If a contact field is missing → omit ONLY that field.
 
                     ========================
                     SECTION CREATION GATE (CRITICAL)
@@ -1538,16 +1537,6 @@ class ResumeAnalysisAgent:
                     - Bold skills that ALREADY EXIST in the resume (\\textbf{{Skill}}).
                     - Reorder bullets within the SAME section without changing content.
                     - Convert plain text into valid LaTeX syntax.
-
-                    ========================
-                    FINAL SELF-CHECK (MANDATORY)
-                    ========================
-                    Before outputting:
-                    - Scan the entire LaTeX.
-                    - If ANY command contains empty {{}} → DELETE that line.
-                    - If ANY section has no content → DELETE the section AND its rule line.
-                    Only then output the LaTeX.
-
 
                     ========================
                     LATEX TEMPLATE (IMMUTABLE)
@@ -1634,6 +1623,209 @@ class ResumeAnalysisAgent:
                     - NO hallucinated content.
                     - IF A SECTION IS NOT EXPLICITLY PRESENT IN THE RESUME → DELETE IT COMPLETELY.
                     """
+
+            ###########################################################################################################################################################################
+            
+            # prompt = f"""
+            #         YOU ARE A DETERMINISTIC RESUME FORMATTER AND COPY-EDITOR.
+
+            #         YOU ARE NOT AN IMPROVER, NOT AN OPTIMIZER, NOT A CREATOR.
+            #         YOU ARE ONLY ALLOWED TO COPY, LIGHTLY REPHRASE, AND REFORMAT TEXT THAT EXISTS VERBATIM IN THE RESUME.
+
+            #         IF YOU ADD EVEN ONE WORD, TOOL, METRIC, DATE, DEGREE, TITLE, SKILL, SUPERVISOR, TECHNOLOGY, OR IDEA
+            #         THAT DOES NOT APPEAR IN THE RESUME TEXT BELOW — THE OUTPUT IS INVALID.
+
+            #         ========================
+            #         SOURCE OF TRUTH — RESUME
+            #         ========================
+            #         \"\"\"{self.resume_text}\"\"\"
+
+            #         ========================
+            #         SECONDARY CONTEXT — JOB DESCRIPTION (NON-AUTHORITATIVE)
+            #         ========================
+            #         ***{analysis_result.get("job_description","")}***
+
+            #         RULES FOR JD CONTEXT:
+            #         - The job description is ONLY for understanding emphasis, wording, and terminology.
+            #         - The job description is NOT a source of facts.
+            #         - You MUST NOT add, invent, or infer any skill, tool, metric, responsibility, or outcome from the job description.
+            #         - You MAY rephrase EXISTING resume bullets to better align with job description terminology
+            #         ONLY IF the underlying skill or responsibility is ALREADY explicitly present in the resume text.
+            #         - If no clear overlap exists between a resume bullet and the job description → DO NOT modify that bullet.
+            #         - If alignment is not possible without adding new information → KEEP THE ORIGINAL RESUME WORDING.
+
+
+            #         ========================
+            #         HARD CONSTRAINTS (ABSOLUTE)
+            #         ========================
+            #         - You MUST treat the resume text as the ONLY source of truth.
+            #         - You MUST NOT infer missing years, supervisors, locations, institutions, or outcomes.
+            #         - You MUST NOT normalize or “complete” partial information.
+            #         - You MUST NOT replace missing values with placeholders like [Year – Year], None, N/A, or similar.
+            #         - If any data is missing → DELETE THAT LINE OR ENTIRE SECTION.
+            #         - DO NOT mention tools, frameworks, APIs, models, metrics, cloud services, or libraries unless they are written EXACTLY in the resume.
+            #         - DO NOT introduce AWS, TensorFlow, supervisors, scores, rankings, accuracy, F1, percentages, or performance claims unless explicitly present.
+            #         - DO NOT change degree names, institute names, project titles, or event names.
+            #         - DO NOT summarize, extend, or generalize bullets.
+
+            #         ========================
+            #         CRITICAL CONTACT RULE (STRICT)
+            #         ========================
+            #         - CONTACT INFORMATION MUST APPEAR ONLY ONCE AND ONLY INSIDE THE CENTER BLOCK.
+            #         - EACH contact field (email, phone, LinkedIn, GitHub) is OPTIONAL and INDEPENDENT.
+            #         - If a contact field does NOT exist in the resume text:
+            #         → DELETE the ENTIRE LaTeX command AND any adjacent separators.
+            #         - NEVER output empty \\href{{}}, empty \\texttt{{}}, or placeholder URLs.
+            #         - It is VALID to output a center block containing ONLY the candidate name.
+
+
+            #         ========================
+            #         LATEX VALIDITY ENFORCEMENT (CRITICAL)
+            #         ========================
+            #         - EMPTY LaTeX commands are FORBIDDEN.
+            #         - You MUST NEVER output commands with empty arguments such as:
+            #         \\href{{}}{{ }}, \\href{{mailto:}}{{ }}, \\textbf{{}}, \\item{{}}, or empty table cells.
+            #         - If a field is missing, you MUST DELETE the ENTIRE LaTeX LINE that would contain it.
+            #         - DO NOT preserve separators (|) if an adjacent field is deleted.
+            #         - DO NOT output placeholder URLs (e.g., https://linkedin.com/in/, https://github.com/).
+            #         - If ALL contact fields are missing, output ONLY the candidate name in the center block.
+
+
+            #         ========================
+            #         SECTION CREATION GATE (CRITICAL)
+            #         ========================
+            #         A SECTION MAY BE CREATED **ONLY IF** THE RESUME TEXT CONTAINS AN EXPLICITLY LABELED SECTION
+            #         WITH A MATCHING OR EQUIVALENT TITLE.
+
+            #         STRICT RULES:
+            #         - EXPERIENCE SECTION:
+            #         Create ONLY if the resume explicitly contains a section labeled:
+            #         "Experience", "Work Experience", "Professional Experience", or "Employment".
+            #         PROJECT CONTENT MUST NEVER BE RECLASSIFIED AS EXPERIENCE.
+
+            #         - CERTIFICATIONS SECTION:
+            #         Create ONLY if the resume explicitly contains a section labeled:
+            #         "Certifications", "Certificates", or "Professional Certifications".
+            #         DO NOT treat courses, workshops, hackathons, or participation as certifications.
+
+            #         - THESIS SECTION:
+            #         Create ONLY if the resume explicitly contains a section labeled "Thesis" or "Dissertation".
+
+            #         - OPEN SOURCE CONTRIBUTIONS:
+            #         Create ONLY if explicitly labeled as "Open Source", "Open Source Contributions",
+            #         or similar.
+
+            #         - IF A SECTION HEADER DOES NOT EXIST IN THE RESUME → DELETE THAT ENTIRE SECTION
+            #         INCLUDING ITS HEADING AND RULE LINE.
+
+            #         ========================
+            #         ALLOWED OPERATIONS (ONLY THESE)
+            #         ========================
+            #         You may ONLY:
+            #         - Rephrase existing bullet points using stronger action verbs WITHOUT adding new meaning.
+            #         - Fix spacing, punctuation, or LaTeX escaping.
+            #         - Bold skills that ALREADY EXIST in the resume (\\textbf{{Skill}}).
+            #         - Reorder bullets within the SAME section without changing content.
+            #         - Convert plain text into valid LaTeX syntax.
+
+            #         ========================
+            #         FINAL SELF-CHECK (MANDATORY)
+            #         ========================
+            #         Before outputting:
+            #         - Scan the entire LaTeX.
+            #         - If ANY command contains empty {{}} → DELETE that line.
+            #         - If ANY section has no content → DELETE the section AND its rule line.
+            #         Only then output the LaTeX.
+
+
+            #         ========================
+            #         LATEX TEMPLATE (IMMUTABLE)
+            #         ========================
+            #         You MUST use the following LaTeX structure EXACTLY.
+            #         DO NOT change spacing, commands, section order, or formatting.
+            #         ONLY replace placeholders with real extracted text OR delete the entire block.
+
+            #         \\documentclass[a4paper,12pt]{{article}}
+            #         \\usepackage[margin=1in]{{geometry}}
+            #         \\usepackage{{hyperref}}
+            #         \\usepackage{{enumitem}}
+
+            #         \\begin{{document}}
+
+            #         \\vspace{{-10pt}}  
+            #         \\begin{{center}}
+            #             \\Huge \\textbf{{[Candidate Name]}} \\\\ 
+            #             \\small
+            #             \\href{{mailto:[email]}}{{[email]}}
+            #             \\texttt{{|}} [phone]
+            #             \\texttt{{|}} \\href{{[linkedin_url]}}{{LinkedIn}}
+            #             \\texttt{{|}} \\href{{[github_url]}}{{GitHub}}
+            #         \\end{{center}}
+
+            #         \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #         [SKILLS_SECTION]
+            #         \\vspace{{-10pt}}
+            #         \\section*{{Technical Skills}}
+
+            #         \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #         [EXPERIENCE_SECTION]
+            #         \\vspace{{-10pt}}
+            #         \\section*{{Experience}}
+
+            #         \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #         [PROJECTS_SECTION]
+            #         \\vspace{{-10pt}}
+            #         \\section*{{Projects}}
+
+            #         \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #         [ACHIEVEMENTS_SECTION]
+            #         \\vspace{{-10pt}}
+            #         \\section*{{Achievements \\& Hackathons}}
+
+            #         \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #         [EDUCATION_SECTION]
+            #         \\vspace{{-10pt}}
+            #         \\section*{{Education}}
+
+            #         \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #         [THESIS_SECTION]
+            #         \\vspace{{-10pt}}
+            #         \\section*{{Thesis}}
+
+            #         \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #         [CERTIFICATIONS_SECTION]
+            #         \\vspace{{-10pt}}
+            #         \\section*{{Certifications}}
+
+            #         \\noindent\\rule{{\\linewidth}}{{0.4pt}}
+
+            #         [OPEN_SOURCE_SECTION]
+            #         \\vspace{{-10pt}}
+            #         \\section*{{Open Source Contributions}}
+
+            #         \\end{{document}}
+
+            #         ========================
+            #         FINAL OUTPUT RULE
+            #         ========================
+            #         - OUTPUT ONLY VALID, COMPILABLE LaTeX CODE.
+            #         - NO explanations.
+            #         - NO comments.
+            #         - NO markdown.
+            #         - NO placeholders.
+            #         - NO hallucinated content.
+            #         - IF A SECTION IS NOT EXPLICITLY PRESENT IN THE RESUME → DELETE IT COMPLETELY.
+            #         """
+            
+            ###########################################################################################################################################################################
+
             # prompt = f"""
             #             YOU ARE A STRICT, DETERMINISTIC, FAIL-SAFE RESUME FORMATTER AND COPY-EDITOR.
 
