@@ -11,6 +11,7 @@ SERPAPI_API_KEY=os.getenv("SERPAPI_API_KEY")
 # LLM_MODEL="llama-3.1-8b-instant"
 # LLM_MODEL="meta-llama/llama-guard-4-12b"
 LLM_MODEL="qwen3:4b-instruct"
+# LLM_MODEL="qwen2.5:1.5b-instruct"
 
 # Job search settings
 DEFAULT_JOB_COUNT=5
@@ -28,6 +29,7 @@ COLORS={
     "eighth":"#144D76",
     "nineth":"#950909",
     "tenth":"#033c84",
+    "eleventh":"#cdcdcd",
 
     # Accent colors
     "accent": "#F17300", # Orange for highlighting

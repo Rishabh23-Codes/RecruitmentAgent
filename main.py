@@ -64,7 +64,7 @@ os.makedirs("saved_jobs", exist_ok=True)
 
 # Import the UI utilities for improved display
 from ui_utils import (
-    display_formatted_analysis,
+    display_formatted_analysis_new,
     display_resume_analysis_summary,
     display_extracted_information,
     format_job_description,
@@ -156,7 +156,9 @@ if "interview_questions" not in st.session_state:
 if "saved_jobs" not in st.session_state:
     st.session_state.saved_jobs = load_saved_jobs()
 if "latex_code" not in st.session_state:
-    st.session_state.latex_code = ""
+    st.session_state.latex_code = None
+if "tab4_state" not in st.session_state:
+    st.session_state.tab4_state = "idle"
 
 
 # Create main navigation tabs
@@ -242,21 +244,24 @@ with tabs[0]:
                             with tempfile.NamedTemporaryFile(delete=False,suffix=f".{custom_jd.name.split('.')[-1]}") as temp_file:
                                 temp_file.write(custom_jd.getbuffer())
                                 temp_path=temp_file.name
-                            analysis_result,extracted_text,latex_code=resume_analyser.analyze_resume(resume_file,custom_jd=custom_jd)
+                            analysis_result,extracted_text=resume_analyser.analyze_resume(resume_file,custom_jd=custom_jd)
                         else:
-                            analysis_result,extracted_text,latex_code=resume_analyser.analyze_resume(resume_file,role=role_requirements[role])
+                            analysis_result,extracted_text=resume_analyser.analyze_resume(resume_file,role=role_requirements[role])
                         try:
                             if extracted_text:
 
                                 #Get AI analysis
                                 resume_agent=resources["resume_agent"]
-                                resume_analysis=resume_agent.analyze_resume(analysis_result)
+                                # resume_analysis=resume_agent.analyze_resume(analysis_result)
 
                                 #Store resume data and analysis in session state
-                                st.session_state.latex_code = latex_code
                                 st.session_state.resume_data=analysis_result
-                                st.session_state.resume_data["analysis"]=resume_analysis
+                                # st.session_state.resume_data["analysis"]=resume_analysis
                                 st.session_state.resume_data["raw_text"]=extracted_text
+
+                                # 🔥 RESET IMPROVED RESUME STATE
+                                st.session_state.latex_code = None
+                                st.session_state.tab4_state = "idle"
 
                                 st.success("Resume analysis complete! Review the extracted information and analysis below.")
                             else:
@@ -382,17 +387,141 @@ with tabs[0]:
     
         # Tab 3: Analysis
         with resume_tabs[2]:
-            if "analysis" in st.session_state.resume_data:
-                display_formatted_analysis(st.session_state.resume_data["analysis"])
+            if "resume_overall_analysis" in st.session_state.resume_data:
+                display_formatted_analysis_new(st.session_state.resume_data["resume_overall_analysis"])
             else:
                 st.info("No detailed analysis available. Please re-upload your resume to generate an analysis.")
 
         # Tab 4: Improved resume
+        # with resume_tabs[3]:
+        #     if st.session_state.latex_code:
+        #         render_latex_to_pdf(latex_code=st.session_state.latex_code)    
+        #     else:
+        #         st.info("Improved resume not available.")
+        #################################################################################################################
         with resume_tabs[3]:
-            if st.session_state.latex_code:
-                render_latex_to_pdf(latex_code=st.session_state.latex_code)    
-            else:
-                st.info("Improved resume not available.")
+
+            tab_container = st.container()
+
+            # ---------- IDLE ----------
+            if st.session_state.tab4_state == "idle":
+
+                left, right = tab_container.columns([1, 2])
+
+                with left:
+                    st.image(
+                        "Images/cv_template_hero.avif",
+                        caption="Create your own Professional Resume",
+                        use_container_width=True
+                    )
+
+                with right:
+                    st.markdown("<div style='padding-top:120px; text-align:center'>", unsafe_allow_html=True)
+                    st.markdown(
+                        """
+                        <div style="text-align:center">
+                            <div style="font-size:40px; font-weight:bold; color:#cdcdcd; margin-bottom:10px;">Ready to improve your resume?</div>
+                            <div style="font-size:20px; color:#555;">Click the button below to generate a clean, ATS-friendly Resume.</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+
+                    st.markdown("<div style='margin-top:40px'></div>", unsafe_allow_html=True)
+                    # Centered button in middle column
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col2:
+                        button_container = st.container()
+                        with button_container:
+                            improve_clicked = st.button("🚀 Improve Resume", key="improve_resume",use_container_width=True)
+
+                    # Isolated CSS for ONLY this button
+                    st.markdown("""
+                    <style>
+                    div[data-testid="stContainer"] > div > button {
+                        width: 100% !important;
+                        padding: 25px 0 !important;
+                        font-size: 24px !important;
+                        border-radius: 12px !important;
+                        background-color: #4CAF50 !important;
+                        color: white !important;
+                    }
+                    div[data-testid="stContainer"] > div > button:hover {
+                        background-color: #45a049 !important;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+
+                    if improve_clicked:
+                        st.session_state.tab4_state = "generating"
+                        st.rerun()
+
+            # ---------- GENERATING ----------
+            elif st.session_state.tab4_state == "generating":
+
+                # Spinner with isolated styling (no purple bar)
+                tab_container.markdown("""
+                <style>
+                .spinner-title {
+                    font-size: 28px;
+                    font-weight: bold;
+                    color: #333 !important;
+                    background: none !important;
+                    padding: 0 !important;
+                    margin: 20px 0 10px 0 !important;
+                    box-shadow: none !important;
+                }
+                .spinner-text {
+                    font-size: 18px;
+                    color: #555 !important;
+                }
+                .loader {
+                    border: 10px solid #f3f3f3;
+                    border-top: 10px solid #4CAF50;
+                    border-radius: 50%;
+                    width: 80px;
+                    height: 80px;
+                    animation: spin 1s linear infinite;
+                    margin: auto;
+                }
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                </style>
+
+                <div style="text-align:center; padding-top:120px">
+                    <div class="loader"></div>
+                    <div class="spinner-title">✨ Improving your resume</div>
+                    <div class="spinner-text">Please wait while we analyze and format your resume</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # 🔹 LLM CALL (REAL ONE)
+                resume_analyser=resources["analysis_agent"]
+                try:
+                    latex = resume_analyser.get_improved_resume(
+                        st.session_state.resume_data["analysis"]
+                    )
+
+                    st.session_state.latex_code = latex
+                    st.session_state.tab4_state = "done"
+
+                except Exception as e:
+                    st.error(str(e))
+                    st.session_state.tab4_state = "idle"
+
+                st.rerun()
+
+            # ---------- DONE ----------
+            elif st.session_state.tab4_state == "done":
+
+                with tab_container:
+
+                    st.success("✅ Improved resume generated")
+
+                    render_latex_to_pdf(st.session_state.latex_code)
+
+    
+
 
         # Add a section to explain resume improvement suggestions
             ########################################################################################################################################################################
@@ -622,7 +751,7 @@ with tabs[1]:
                 selected_platforms=st.multiselect(
                     "Job Platforms:",
                     options=JOB_PLATFORMS,
-                    default=JOB_PLATFORMS,
+                    default=["LinkedIn"],
                     key="platforms"
                 )
 
@@ -630,7 +759,7 @@ with tabs[1]:
                 job_count=st.slider("Jobs per platform:",3,20,5,key="job_count")
 
                 # Use Serapi option
-                use_serp_api=st.checkbox("Use SerpAPI for real job listings",value=True,key="use_serp_api")
+                use_serp_api=st.checkbox("Use SerpAPI for real job listings",value=False,key="use_serp_api")
 
             submit_search=st.form_submit_button("Search Jobs")
 
@@ -645,7 +774,7 @@ with tabs[1]:
 
             # Add experience level to wuery if needed
             if experience_level: # if not default
-                search_query+=f"experience of {experience_level} years"
+                search_query+=f" experience of {experience_level} years"
 
             # Convert recency to day for API
             recency_days={

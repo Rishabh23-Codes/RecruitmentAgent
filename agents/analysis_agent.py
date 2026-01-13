@@ -45,7 +45,7 @@ class ResumeAnalysisAgent:
         self.resume_weaknesses=[]
         self.resume_strengths=[]
         self.improvement_suggestions={}
-        self.resume_skills=[]
+        self.skills=[]
         self.education=[]
         self.experience=[]
         self.contact_info={"email":"","phone":""}
@@ -434,9 +434,371 @@ class ResumeAnalysisAgent:
 
 ####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
 ####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+
+    def compare_resume_jd_new(self,skills,experience,education,role_requirements=None,custom_jd=None):
+            try:
+                context_text=""
+                experiences=",".join(experience)[:2000]
+                skill=",".join(skills)
+                role=None
+                if custom_jd:
+                    jd_text=self.extract_text_from_file(custom_jd)
+                    jd_vectorstore=self.create_rag_vector_store(jd_text)
+                    retriever=jd_vectorstore.as_retriever(search_kwargs={"k": 3})
+                    query="Extract all technical skills, programming languages, frameworks, tools, cloud platforms, databases, and relevant technologies mentioned in this job description. Include both mandatory and optional skills.For example: ['Python', 'JavaScript', 'React.js', 'Node.js', 'SQL', 'Docker', 'AWS', 'Machine Learning', 'LangChain']."
+                    relevant_chunks = retriever.invoke(query)
+                    context_text = "\n".join([doc.page_content for doc in relevant_chunks])[:3000]
+                    print(f"✅ JD context: {len(relevant_chunks)} chunks")
+                elif role_requirements:
+                    role = next((key for key, values in require.items() if any(v in values for v in role_requirements)), None)
+                    context_text=",".join(role_requirements)
+                    print(f"✅ Role requirements: {len(role_requirements)} skills")
+
+                if not context_text:
+                    print("❌ NO JD CONTEXT - Returning empty!")
+
+                # Prompt to extract technical skills in strict JSON format
+                prompt = f"""
+            
+                System: You are an expert resume analysis and job-alignment specialist.
+
+                The resume information is already extracted and provided as structured inputs
+                (skills, experience, education). Use these inputs directly without re-interpreting
+                or re-extracting resume data.
+
+                Your task is to compare the provided resume details with the job context,analysis
+                identify alignment, gaps, weaknesses, and generate actionable improvement insights.
+
+                All analysis must be strictly grounded in the given inputs.
+                Do not assume or infer information not explicitly present.
+
+                ====================================================
+                INPUT DATA
+                ====================================================
+
+                === RESUME DETAILS ===
+                Skills:
+                {skill}
+
+                Education:
+                {education}
+
+                Experience:
+                {experiences}
+
+                === JOB CONTEXT ===
+                Job detail in job_context:
+                {context_text}
+
+                ====================================================
+                ANALYSIS OBJECTIVES
+                A) JD–RESUME COMPARISON
+                ====================================================
+                
+
+                1. Identify skills that align between the resume and job_context.
+                2. Explain how the resume demonstrates the aligned skills.
+                3. Identify missing skills required by the job.
+                4. Extract all skills mentioned in the job context.
+                5. Determine the job role and a concise job description.
+                6. Provide resume-focused assessment, improvement suggestions, and ATS guidance.
+                7. Analyze weaknesses ONLY for missing skills and provide improvement actions.
+
+                ====================================================
+                FIELDS TO RETURN (KEYS MUST MATCH EXACTLY)
+                ====================================================
+
+                1. Matching Skills  
+                - Skills present in resume skills or experience
+                - AND explicitly mentioned in job_context
+
+                2. Skill Reasoning  
+                - One-to-one correspondence with Matching Skills (same order)
+                - Concise explanation of evidence from experience or skills
+
+                3. Missing Skills  
+                - Skills explicitly required or mentioned in job_context
+                - Not present in resume skills or experience
+                - Ordered them in decreasing priority based on their importance in the job description
+
+                4. Extracted Skills  
+                - All skills explicitly mentioned in job_context
+
+                5. Job Role  
+                - {role if role else "extract the job role from job_context"}
+
+                6. Job Description  
+                - {"Generate a short and concise professional Job description based on this role: "+role if role else "Extract the short and concise job description from the 'job_context' only"}
+
+                Example:  
+                    Resume Skills: "Python, React.js, SQL, Docker"  
+                    Job Description Context: "Looking for candidates with Python, JavaScript, React.js, Node.js, SQL, AWS, Docker, and CI/CD experience."  
+
+                    Expected example structure:
+                    {{
+                        "Matching Skills": ["Python", "React.js", "SQL", "Docker"],
+                        "Skill Reasoning": [
+                            "Python: Strong experience indicated in multiple projects",
+                            "React.js: Used in personal web development projects",
+                            "SQL: Demonstrated through database management tasks",
+                            "Docker: Used for containerizing projects"
+                        ],
+                        "Missing Skills": ["JavaScript", "Node.js", "AWS", "CI/CD"],
+                        "Extracted Skills": ["Python", "JavaScript", "React.js", "Node.js", "SQL", "AWS", "Docker", "CI/CD"],
+                        "Job Role": "Web Developer",
+                        "Job Description": "Looking for candidates with Python, JavaScript, React.js, Node.js, SQL, AWS, Docker, and CI/CD experience."  
+                    }}
+                ====================================================
+                B) RESUME OVERALL ANALYSIS (Resume-Focused)
+                ====================================================
+
+                Using ONLY resume data and comparison results, generate:
+
+                1. Overall Assessment  
+                - Strengths (derived from matching skills)
+                - Areas for improvement
+                - Suitable job roles or industry sectors
+
+                2. Content Improvements  
+                - Ways to quantify achievements
+                - Skills presentation improvement
+                - Missing critical skill
+
+                3. Format Suggestions  
+                - Structure improvement
+                - Length suggestion
+                - Readability tip
+
+                4. ATS Optimization  
+                - Additional keywords
+                - Formatting pitfall
+                - File format recommendation
+
+                Expected structure example:
+
+                "Resume Overall Analysis": {{
+                    "overall_assessment": {{
+                        "strengths": ["", "", ""],
+                        "areas_for_improvement": ["", ""],
+                        "suitable_roles_or_sectors": ["", ""]
+                    }},
+                    "content_improvements": {{
+                        "quantification_suggestions": ["", ""],
+                        "skills_presentation": [""],
+                        "missing_critical_skill": [""]
+                    }},
+                    "format_suggestions": {{
+                        "structure": [""],
+                        "length": [""],
+                        "readability": [""]
+                    }},
+                    "ats_optimization": {{
+                        "additional_keywords": ["", "", ""],
+                        "formatting_pitfall": [""],
+                        "file_format_recommendation": [""]
+                    }}
+                }}
+
+                Guidelines:
+                - Concise, actionable points
+                - Maximum 3 bullets per subsection
+                - Plain bullet text only
+                - No special characters or symbols
+
+                ====================================================
+                C) DETAILED WEAKNESS & IMPROVEMENT ANALYSIS
+                ====================================================
+
+                Analyze weaknesses ONLY for the Missing Skills.
+
+                For detailed weakness and improvement analysis
+                Take 5 top necessary * Missing Skills * and Do iteratively for each and every -> explain why the resume does not sufficiently demonstrate
+                that skill and provide specific, realistic improvement suggestions.
+                For your analysis consider:
+                    1. What's missing from the resume regarding this skill?
+                    2. How could it be improved with specific examples?
+                    3. What specific action items would make this skill stand out?
+
+                Return in the following example structure:
+
+                "Detailed Weaknesses": [
+                    {{
+                        "skill": "<missing skill name>",
+                        "weakness": "A concise description of what's missing or problematic(1–2 sentences)",
+                        "improvement_suggestions": [
+                            "Specific suggestion 1",
+                            "Specific suggestion 2",
+                            "Specific suggestion 3"
+                        ]
+                    }}
+                ]
+
+                ====================================================
+                EXPECTED OUTPUT STRUCTURE (FINAL JSON)
+                ====================================================
+                The response MUST be a single valid JSON object that FILLS the following structure.
+                All keys must be present exactly as shown. Replace placeholder values with required filled content.
+                {{
+                    "Matching Skills": [],
+                    "Skill Reasoning": [],
+                    "Missing Skills": [],
+                    "Extracted Skills": [],
+                    "Job Role": "",
+                    "Job Description": "",
+
+                    "Resume Overall Analysis": {{
+                        "overall_assessment": {{
+                            "strengths": [],
+                            "areas_for_improvement": [],
+                            "suitable_roles_or_sectors": []
+                        }},
+                        "content_improvements": {{
+                            "quantification_suggestions": [],
+                            "skills_presentation": [],
+                            "missing_critical_skill": []
+                        }},
+                        "format_suggestions": {{
+                            "structure": [],
+                            "length": [],
+                            "readability": []
+                        }},
+                        "ats_optimization": {{
+                            "additional_keywords": [],
+                            "formatting_pitfall": [],
+                            "file_format_recommendation": []
+                        }}
+                    }},
+
+                    "Detailed Weaknesses": [
+                        {{
+                            "skill": "",
+                            "weakness": "",
+                            "improvement_suggestions": []
+                        }}
+                    ]
+                }}
+                ====================================================
+                STRICT RULES
+                ====================================================
+                - Use only information present in the inputs
+                - Do not hallucinate skills, experience, or achievements
+                - Maintain exact key names and nesting
+                - Skill Reasoning must map 1:1 with Matching Skills
+                - If no data exists for a field, return ["Not found"]
+                - Return ONLY valid JSON
+                - No markdown, no commentary, no explanations
+                """
+
+                response_text = safe_llm_invoke(self.llm, prompt).content.strip()
+            
+                # ---------- SAFE LLM JSON PARSING ----------
+                print(f"📄 JD Match LLM response preview:\n{response_text[:10]}\n")
+
+                try:
+                    # 1️⃣ Try direct JSON parse
+                    llm_data = json.loads(response_text)
+
+                except json.JSONDecodeError:
+                    # 2️⃣ Fallback: extract JSON block manually
+                    json_start = response_text.find("{")
+                    json_end = response_text.rfind("}") + 1
+
+                    if json_start != -1 and json_end != -1:
+                        try:
+                            llm_data = json.loads(response_text[json_start:json_end])
+                        except json.JSONDecodeError as e:
+                            print("❌ JD Match JSON extraction failed:", e)
+                            llm_data = {}
+                    else:
+                        print("❌ No JSON found in JD Match LLM response")
+                        llm_data = {}
+
+                # ---------- SAFE FIELD EXTRACTION ----------
+                matching_skills = llm_data.get("Matching Skills", [])
+                skill_reasoning = llm_data.get("Skill Reasoning", [])
+                missing_skills = llm_data.get("Missing Skills", [])
+                extracted_skills = llm_data.get("Extracted Skills", [])
+                job_role=llm_data.get("Job Role","")
+                job_description=llm_data.get("Job Description","")
+                resume_overall_analysis=llm_data.get("Resume Overall Analysis",{})
+                detailed_weaknesses=llm_data.get("Detailed Weaknesses",[])
+
+                print(
+                    f"✅ LLM Parsed → "
+                    f"Matches: {len(matching_skills)}, "
+                    f"JD Skills: {len(extracted_skills)}, "
+                    f"Gaps: {len(missing_skills)}, "
+                    f"Role: {job_role}, "
+                    f"JD Desc Len: {len(job_description)}, "
+                    f"Analysis Sections: {len(resume_overall_analysis)}, "
+                    f"Weaknesses: {len(detailed_weaknesses)}"
+                )
+
+                
+                # ✅ RULE-BASED CALCULATIONS (No semantic analysis needed)
+                total_jd_skills = len(extracted_skills)
+                match_count = len(matching_skills)
+                overall_score = int((match_count / max(1, total_jd_skills)) * 100)
+                
+                # Strengths = matching_skills (as requested)
+                strengths = matching_skills.copy()
+                improvement_area = missing_skills if overall_score < self.cutoff_score else []
+                
+                # PERFECT OUTPUT STRUCTURE (Exactly as requested)
+                result = {
+                    "resume_skills": skills,   
+                    "experience": experience,
+                    "education": education,           # Input parameter
+                    "matching_skills": matching_skills,          # LLM + strengths
+                    "strengths": strengths,                      # = matching_skills
+                    "skill_reasoning": skill_reasoning,          # LLM
+                    "missing_skills": missing_skills,            # LLM
+                    "extracted_skills": extracted_skills,        # LLM (JD skills)
+                    "overall_score": overall_score,              # = match_percentage
+                    "improvement_area":improvement_area,
+                    "selected": overall_score >= self.cutoff_score,
+                    "job_role": role if role else job_role,
+                    "job_description":job_description,
+                    "resume_overall_analysis":resume_overall_analysis,
+                    "detailed_weaknesses":detailed_weaknesses
+                }
+                
+                print(f"✅ Analysis: {overall_score}% | Strengths: {len(strengths)} | Gaps: {len(missing_skills)}")
+                return result
+                
+            except Exception as e:
+                print(f"❌ compare_resume_jd error: {e}")
+                return {
+                    "resume_skills": skills,
+                    "experience": experience,
+                    "education": education,
+                    "matching_skills": [],
+                    "strengths": [],
+                    "skill_reasoning": [],
+                    "missing_skills": [],
+                    "extracted_skills": [],
+                    "overall_score": 0,
+                    "improvement_area": [],
+                    "selected": False,
+                    "job_role": "",
+                    "job_description":"",
+                    "resume_overall_analysis":{},
+                    "detailed_weaknesses":[],
+                    "error": str(e)
+                }
 
 
 
+
+
+
+
+
+
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
 
 
 
@@ -498,7 +860,7 @@ class ResumeAnalysisAgent:
                 "Job Role": "Web Developer",
                 "Job Description": "Looking for candidates with Python, JavaScript, React.js, Node.js, SQL, AWS, Docker, and CI/CD experience."  
             }}
-
+e
             **RULES:**
             - Only use skills explicitly mentioned
             - Skill Reasoning must match exactly 1:1 with Matching Skills order
@@ -649,7 +1011,7 @@ class ResumeAnalysisAgent:
             self.rag_vectorstore = fut_rag.result()
             contact_info = fut_contact.result()
 
-        analysis = self.compare_resume_jd(
+        analysis = self.compare_resume_jd_new(
             skills=skills,
             experience=experience,
             education=education,
@@ -659,14 +1021,26 @@ class ResumeAnalysisAgent:
 
         analysis["contact_info"] = contact_info
         print("✅ contact info add")
+        print("============================================================")
+        print(" ")
+        print("✅ everything add")
+        print(" ")
+        print("============================================================")
+        print(" ")
 
-        if analysis.get("missing_skills"):
-            analysis["detailed_weaknesses"] = self.analyze_resume_weaknesses(analysis)
 
-        latex_code = self.get_improved_resume(analysis)
-        print("✅ done everything in analyze_system")
 
-        return analysis, self.resume_text, latex_code
+        # if analysis.get("missing_skills"):
+        #     analysis["detailed_weaknesses"] = self.analyze_resume_weaknesses(analysis)
+        print(" ")
+        print("============================================================")
+        print(" ")
+        print(analysis)
+        print(" ")
+        print("============================================================")
+
+
+        return analysis, self.resume_text
 
 
 
@@ -2196,11 +2570,9 @@ class Implement:
             st.error(f"Error generating improvements: {e}")
             return {}
             
-    def get_improved_resume(self,target_role,highlight_skills):
-        """Get an improved version of the resume"""
+    def get_improved_resume(self, analysis_result):
         try:
-            with st.spinner("Creating improved resume..."):
-                return self.agent.get_improved_resume(target_role,highlight_skills)
+            return self.agent.get_improved_resume(analysis_result)
         except Exception as e:
-            st.error(f"Error creating improved resume: {e}")
-            return "Error generating improved resume."
+            raise RuntimeError(f"LLM resume generation failed: {e}")
+

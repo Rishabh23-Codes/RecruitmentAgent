@@ -316,22 +316,22 @@ def display_resume_analysis_summary(resume_data):
 
             with st.expander(f"{skill_name}"):
                 # Close detail display
-                detail=weakness.get('detail','No specific details provided.')
+                detail=weakness.get('weakness','No specific details provided.')
                 #Clean JSON formatting if it appears in the text
                 if detail.startswith('```json') or '{' in detail:
                     detail="The resume lacks examples of this skill."
                 st.markdown(f'<div class="weakness-detail"><strong>Issue:</strong> {detail}</div>',unsafe_allow_html=True)
 
                 # Display improvement suggestions if available
-                if 'suggestions' in weakness and weakness['suggestions']:
+                if 'improvement_suggestions' in weakness and weakness['improvement_suggestions']:
                     st.markdown("<strong>How to improve:</strong>",unsafe_allow_html=True)
-                    for i,suggestion in enumerate(weakness['suggestions']):
+                    for i,suggestion in enumerate(weakness['improvement_suggestions']):
                         st.markdown(f'<div class="solution-detail">{i+1}.{suggestion}</div>',unsafe_allow_html=True)
 
-                # Display example if available
-                if 'example' in weakness and weakness['example']:
-                    st.markdown("<strong>Example addition:</strong>",unsafe_allow_html=True)
-                    st.markdown(f'<div class="example-detail">{weakness["example"]},</div>',unsafe_allow_html=True)
+                # # Display example if available
+                # if 'example' in weakness and weakness['example']:
+                #     st.markdown("<strong>Example addition:</strong>",unsafe_allow_html=True)
+                #     st.markdown(f'<div class="example-detail">{weakness["example"]},</div>',unsafe_allow_html=True)
 
 
 
@@ -581,6 +581,86 @@ def display_extracted_information(resume_data,resume_file):
             st.markdown("""<div style="background-color: #546E7A; color: white; padding: 15px; 
                 border-radius: 8px;">No experience information detected.</div>""", 
                 unsafe_allow_html=True)
+########################################################################################################################################################################
+
+def display_formatted_analysis_new(resume_overall_analysis: dict):
+    """
+    Beautify and display Resume Overall Analysis (structured JSON)
+    """
+
+    if not resume_overall_analysis or not isinstance(resume_overall_analysis, dict):
+        st.info("No resume analysis available")
+        return
+
+    # Section configuration
+    section_config = {
+        "overall_assessment": {
+            "title": "Overall Assessment",
+            "color": "#3a506b"
+        },
+        "content_improvements": {
+            "title": "Content Improvements",
+            "color": "#1b3a4b"
+        },
+        "format_suggestions": {
+            "title": "Format Suggestions",
+            "color": "#4d194d"
+        },
+        "ats_optimization": {
+            "title": "ATS Optimization",
+            "color": "#54478c"
+        }
+    }
+
+    for section_key, config in section_config.items():
+        section_data = resume_overall_analysis.get(section_key)
+
+        if not section_data:
+            continue
+
+        st.subheader(config["title"])
+
+        rendered_blocks = []
+
+        for sub_key, items in section_data.items():
+            if not items or items == ["Not found"]:
+                continue
+
+            # Human-readable subtitle
+            subtitle = sub_key.replace("_", " ").title()
+
+            bullet_html = "".join(
+                f"<li>{item}</li>" for item in items if item
+            )
+
+            rendered_blocks.append(
+                f"""
+                <div style="margin-bottom:10px;">
+                    <strong>{subtitle}</strong>
+                    <ul style="margin-top:6px;">{bullet_html}</ul>
+                </div>
+                """
+            )
+
+        if rendered_blocks:
+            st.markdown(
+                f"""
+                <div style="
+                    background-color:{config['color']};
+                    color:white;
+                    padding:16px;
+                    border-radius:10px;
+                    font-size:15px;
+                    line-height:1.6;
+                ">
+                    {''.join(rendered_blocks)}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+########################################################################################################################################################################
+
             
 def display_formatted_analysis(analysis):
     """Format and display the resume analysis in a structured way with improved visibility.
@@ -630,6 +710,9 @@ def display_formatted_analysis(analysis):
                 font-size: 16px; line-height: 1.5;'>{content}</div>""", 
                 unsafe_allow_html=True
             )
+
+
+
 def format_job_description(description):
     """Format the job description for better readability with high contrast.
     Args:
