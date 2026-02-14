@@ -7,54 +7,101 @@ import base64
 
 
 # Role requirement dictionary
-role_requirements={
-    "AI/ML Engineer":[
-        "Python","PyTorch","TensorFlow","Machine Learning","Deep Learning","MLOps",
-        "Scikit-Learn","NLP","Computer Vision","Reinforcement Learning","Hugging Face",
-        "Data Engineering","Feature Engineering","AutoML"
+role_requirements = {
+    "AI Engineer": [
+        "Python", "LangChain", "OpenAI API", "Hugging Face Transformers",
+        "RAG (Retrieval-Augmented Generation)", "Vector Databases (FAISS, Pinecone, Chroma, Weaviate)",
+        "Prompt Engineering", "Agent Development",
+        "LLM Integration with APIs", "FastAPI / Flask for LLM Endpoints",
+        "Docker", "Kubernetes", "Cloud Deployment (AWS/GCP/Azure)", "Async Programming",
+        "Data Preprocessing for LLMs", "Evaluation & Testing of LLM outputs"
     ],
-    "Frontend Engineer":[
-        "React","Vue","Angular","HTML5","CSS3","JavaScript","TypeScript","Next.js",
-        "Svelte","Bootstrap","Tailwind CSS","GraphQL","Redux",
-        "WebAssembly","Three.js","Performance Optimization"
+
+    "ML Engineer": [
+        "Python", "PyTorch", "TensorFlow", "Scikit-Learn",
+        "Supervised/Unsupervised Learning", "Deep Learning", "CNN/RNN/Transformers",
+        "Computer Vision", "NLP (classical)", "Reinforcement Learning",
+        "Model Training & Evaluation", "Feature Engineering", "Hyperparameter Tuning",
+        "Data Augmentation", "AutoML", "Experiment Tracking (MLflow, W&B)",
+        "GPU Programming", "Big Data Tools (Spark/Hadoop)"
     ],
-    "Backend Engineer":[
-        "Python","Java","Node.js","REST APIs","Cloud services","Kubernetes",
-        "Docker","GraphQL","Microservices","gRPC","Spring Boot","Flask",
-        "FastAPI","SQL & NoSQL Databases","Redis","RabbitMQ","CI/CD","Django"
+
+    "Agent Developer": [
+        "Python", "LangChain", "RAG", "OpenAI API / LLM APIs",
+        "Multi-Agent Systems", "Agent-Oriented Programming", "Vector Databases",
+        "FastAPI / Flask Endpoints", "Docker", "Kubernetes", "Cloud Deployment",
+        "Prompt Engineering", "Task Planning / Orchestration", "Event-Driven Architecture"
     ],
-    "Data Engineer":[
-        "Python","SQL","Apache Spark","Hadoop","Kafka","ETL Pipelines","Airflow",
-        "BigQuery","Redshift","Data Warehousing","Snowflake","Azure Data Factory",
-        "GCP","AWS GLue","DBT"
+
+    "Data Engineer": [
+        "Python", "SQL", "ETL Pipelines", "Apache Spark", "Hadoop", "Kafka", "Airflow",
+        "BigQuery", "Redshift", "Snowflake", "Azure Data Factory", "AWS Glue", "DBT",
+        "Data Modeling", "Data Warehousing", "Streaming & Batch Processing",
+        "NoSQL Databases", "Monitoring & Logging", "CI/CD for Data Pipelines"
     ],
-    "DevOps Engineer":[
-        "Linux Administration","Docker","Kubernetes","Helm","Terraform","Ansible",
-        "CI/CD Pipelines","GitHub Actions","GitLab CI","Jenkins",
-        "AWS","GCP","Azure","Monitoring & Logging",
-        "Prometheus","Grafana","ELK Stack","SRE Principles","Networking"
+
+    "Data Scientist": [
+        "Python", "R", "Machine Learning", "Statistics", "Probability",
+        "Pandas", "NumPy", "Scikit-Learn", "TensorFlow", "PyTorch",
+        "Data Visualization (Matplotlib, Seaborn, Plotly)", "SQL",
+        "Feature Engineering", "Model Evaluation", "Big Data Tools (Spark/Hadoop)",
+        "NLP (classical)", "Time Series Analysis", "AutoML"
     ],
-    "Full Stack Engineer":[
-        "JavaScript","TypeScript","React","Next.js","Vue","Node.js","Express",
-        "Python","Django","Flask","FastAPI",
-        "SQL & NoSQL Databases","GraphQL","REST APIs",
-        "HTML5","CSS3","Tailwind CSS","Docker","CI/CD",
-        "Microservices","Authentication & Authorization"
+
+    "Frontend Engineer": [
+        "React", "Vue", "Angular", "Svelte", "Next.js", "Nuxt.js", "HTML5", "CSS3",
+        "JavaScript", "TypeScript", "Tailwind CSS", "Bootstrap", "GraphQL", "Redux", "Recoil",
+        "WebAssembly", "Three.js", "Performance Optimization", "Accessibility (a11y)",
+        "Responsive Design", "Testing (Jest, Cypress)"
     ],
-    "Product Manager":[
-        "Product Strategy","Roadmapping","User Research","Agile Methodologies",
-        "Scrum","Data Analysis","A/B Testing","Market Research",
-        "UI/UX Understanding","Stakeholder Management","OKRs",
-        "Product Analytics Tools","Competitive Analysis","Prioritization Frameworks"
+
+    "Backend Engineer": [
+        "Python", "Java", "Node.js", "Go", "Rust", "REST APIs", "GraphQL", "gRPC",
+        "Microservices Architecture", "Spring Boot", "Flask", "FastAPI", "Django",
+        "SQL & NoSQL Databases", "Redis", "RabbitMQ", "Kafka", "CI/CD Pipelines", "Docker", "Kubernetes",
+        "AWS/GCP/Azure Services", "Authentication & Authorization", "Logging & Monitoring"
     ],
-    "Data Scientist":[
-        "Python","R","Machine Learning","Deep Learning","Statistics","Probability",
-        "Pandas","NumPy","Scikit-Learn","TensorFlow","PyTorch",
-        "Data Visualization","Matplotlib","Seaborn","Plotly",
-        "SQL","Feature Engineering","Model Evaluation",
-        "Big Data Tools (Spark/Hadoop)","NLP","Time Series Analysis"
+
+    "Full Stack Engineer": [
+        "JavaScript", "TypeScript", "React", "Vue", "Next.js", "Node.js", "Express",
+        "Python", "Django", "Flask", "FastAPI",
+        "SQL & NoSQL Databases", "GraphQL", "REST APIs",
+        "HTML5", "CSS3", "Tailwind CSS", "Bootstrap",
+        "Docker", "CI/CD", "Microservices", "Authentication & Authorization",
+        "Cloud Deployment (AWS/GCP/Azure)", "Unit & Integration Testing"
+    ],
+
+    "DevOps Engineer": [
+        "Linux Administration", "Docker", "Kubernetes", "Helm", "Terraform", "Ansible",
+        "CI/CD Pipelines", "GitHub Actions", "GitLab CI", "Jenkins", "AWS/GCP/Azure",
+        "Monitoring & Logging", "Prometheus", "Grafana", "ELK Stack", "SRE Principles",
+        "Networking", "Security & Compliance", "Serverless Deployment", "Infrastructure as Code"
+    ],
+
+    "Product Manager": [
+        "Product Strategy", "Roadmapping", "User Research", "Agile Methodologies", "Scrum",
+        "Data Analysis", "A/B Testing", "Market Research", "UI/UX Understanding",
+        "Stakeholder Management", "OKRs", "Product Analytics Tools (Mixpanel, Amplitude)",
+        "Competitive Analysis", "Prioritization Frameworks", "Communication & Leadership",
+        "Technical Knowledge (APIs, Cloud, ML basics)"
+    ],
+
+    "Cloud Engineer": [
+        "AWS", "GCP", "Azure", "Terraform", "CloudFormation", "Kubernetes", "Docker",
+        "Serverless (Lambda, Cloud Functions, Azure Functions)", "CI/CD",
+        "Networking & Security", "Monitoring & Logging", "Cost Optimization",
+        "IAM & Policy Management", "Cloud Architecture Design", "DevOps Practices"
+    ],
+
+    "Cybersecurity Engineer": [
+        "Network Security", "Application Security", "Penetration Testing",
+        "Vulnerability Assessment", "SIEM (Splunk, ELK)", "Firewall & IDS/IPS",
+        "Endpoint Security", "Encryption", "Identity & Access Management (IAM)",
+        "AWS/GCP/Azure Security", "Compliance Standards (ISO 27001, GDPR, SOC2)",
+        "Python/Bash for Security Automation"
     ]
 }
+
 
 def display_resume_analysis_summary(resume_data):
     """Display a summary of the resume analysis with improved visibility.

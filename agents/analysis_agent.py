@@ -17,7 +17,7 @@ from langchain_ollama.chat_models import ChatOllama
 from ui_utils import role_requirements as require
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-
+import traceback
 
 
 def safe_llm_invoke(llm, prompt, max_retries=3):
@@ -48,9 +48,10 @@ class ResumeAnalysisAgent:
         self.skills=[]
         self.education=[]
         self.experience=[]
+        self.job_id=None
         self.contact_info={"email":"","phone":""}
-        # self.llm = ChatGroq(model=LLM_MODEL, api_key=GROQ_API_KEY)
-        self.llm=ChatOllama(model=LLM_MODEL,temperature=0)
+        self.llm = ChatGroq(model=LLM_MODEL, api_key=GROQ_API_KEY)
+        # self.llm=ChatOllama(model=LLM_MODEL,temperature=0)
         self.embeddings=HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
 
 
@@ -160,119 +161,119 @@ class ResumeAnalysisAgent:
         return vectorstore
     
 
-    def analyze_skill(self, skill, retriever):
-        """Analyze a skill in the resume"""
+    # def analyze_skill(self, skill, retriever):
+    #     """Analyze a skill in the resume"""
     
-        # Step 1: Create the query
-        query = f"On a scale of 0-10, how clearly does the candidate mention proficiency in {skill}? "
+    #     # Step 1: Create the query
+    #     query = f"On a scale of 0-10, how clearly does the candidate mention proficiency in {skill}? "
         
-        # Step 2: Retrieve relevant resume content
-        docs = retriever.invoke(query)
+    #     # Step 2: Retrieve relevant resume content
+    #     docs = retriever.invoke(query)
         
-        # Step 3: Build context from retrieved documents
-        context = "\n".join([doc.page_content for doc in docs]) ###########
-        # context = "\n".join(doc.page_content for doc in docs)
+    #     # Step 3: Build context from retrieved documents
+    #     context = "\n".join([doc.page_content for doc in docs]) ###########
+    #     # context = "\n".join(doc.page_content for doc in docs)
         
-        # Step 4: Create analysis prompt
-        prompt = f"""
-        You are strict prompt follower and analyze carefully the prompt and do what only that prompt say,
-        Evaluate how well the resume demonstrates skill: {skill}.
+    #     # Step 4: Create analysis prompt
+    #     prompt = f"""
+    #     You are strict prompt follower and analyze carefully the prompt and do what only that prompt say,
+    #     Evaluate how well the resume demonstrates skill: {skill}.
         
-        Resume Content:
-        {context}
+    #     Resume Content:
+    #     {context}
         
-        Question: {query}
+    #     Question: {query}
         
-        Provide your response starting with a numeric score (0-10), followed by your reasoning.
-        Format: "[SCORE]. [REASONING]"
-        """
+    #     Provide your response starting with a numeric score (0-10), followed by your reasoning.
+    #     Format: "[SCORE]. [REASONING]"
+    #     """
         
-        # Step 5: Get LLM response (replaces qa_chain.run())
-        # response = llm.invoke(prompt)
-        # response_text = response.content.strip()
-        response_text = safe_llm_invoke(self.llm, prompt).content.strip()
+    #     # Step 5: Get LLM response (replaces qa_chain.run())
+    #     # response = llm.invoke(prompt)
+    #     # response_text = response.content.strip()
+    #     response_text = safe_llm_invoke(self.llm, prompt).content.strip()
         
-        # Step 6: Parse score from response
-        match = re.search(r"(\d{1,2})", response_text)
-        score = int(match.group(1)) if match else 0
+    #     # Step 6: Parse score from response
+    #     match = re.search(r"(\d{1,2})", response_text)
+    #     score = int(match.group(1)) if match else 0
         
-        # Step 7: Extract reasoning
-        reasoning = ""
-        if '.' in response_text:
-            parts = response_text.split('.', 1)
-            if len(parts) > 1:
-                reasoning = parts[1].strip()
+    #     # Step 7: Extract reasoning
+    #     reasoning = ""
+    #     if '.' in response_text:
+    #         parts = response_text.split('.', 1)
+    #         if len(parts) > 1:
+    #             reasoning = parts[1].strip()
         
-        return skill, min(score, 10), reasoning
+    #     return skill, min(score, 10), reasoning
     
 
 
 
 
 
-    def analyze_resume_weaknesses(self,analysis_result):
-        """Analyze specific weaknesses in the reason based on missing skills"""        
-        skill=analysis_result.get("missing_skills",[])[:5]
-        # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
-        prompt=f"""
-        Follow the prompt exactly and do iteratively for each and every skill mentioned in the "{skill}" and 
-        Analyze why the resume is weak in demonstrating proficiency in that skill.
+    # def analyze_resume_weaknesses(self,analysis_result):
+    #     """Analyze specific weaknesses in the reason based on missing skills"""        
+    #     skill=analysis_result.get("missing_skills",[])[:5]
+    #     # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
+    #     prompt=f"""
+    #     Follow the prompt exactly and do iteratively for each and every skill mentioned in the "{skill}" and 
+    #     Analyze why the resume is weak in demonstrating proficiency in that skill.
         
-        For your analysis consider:
-        1. What's missing from the resume regarding this skill?
-        2. How could it be improved with specific examples?
-        3. What specific action items would make this skill stand out?
+    #     For your analysis consider:
+    #     1. What's missing from the resume regarding this skill?
+    #     2. How could it be improved with specific examples?
+    #     3. What specific action items would make this skill stand out?
 
-        Provide your response in this JSON format:
-        [
-            {{
-                "skill": "<skill name>",
-                "weakness":"A concise description of what's missing or problematic(1-2 sentences)",
-                "improvement_suggestions": [
-                    "Specific suggestion 1",
-                    "Specific suggestion 2",
-                    "Specific suggestion 3"
-                ],
-                "example addition":"A specific bullet point that could be added to showcase this skill"
-            }}
-        ]
+    #     Provide your response in this JSON format:
+    #     [
+    #         {{
+    #             "skill": "<skill name>",
+    #             "weakness":"A concise description of what's missing or problematic(1-2 sentences)",
+    #             "improvement_suggestions": [
+    #                 "Specific suggestion 1",
+    #                 "Specific suggestion 2",
+    #                 "Specific suggestion 3"
+    #             ],
+    #             "example addition":"A specific bullet point that could be added to showcase this skill"
+    #         }}
+    #     ]
 
-        Return only valid JSON, no other text.            
-        """
+    #     Return only valid JSON, no other text.            
+    #     """
 
-        # response=llm.invoke(prompt)
-        # weakness_content=response.content.strip() ##########
-        weakness_content = safe_llm_invoke(self.llm, prompt).content.strip()
-        # strip code fences if any
-        weakness_content = weakness_content.strip("```json").strip("```").strip()
+    #     # response=llm.invoke(prompt)
+    #     # weakness_content=response.content.strip() ##########
+    #     weakness_content = safe_llm_invoke(self.llm, prompt).content.strip()
+    #     # strip code fences if any
+    #     weakness_content = weakness_content.strip("```json").strip("```").strip()
 
-        try:
-            weakness_data=json.loads(weakness_content)
-            weaknesses=[]
+    #     try:
+    #         weakness_data=json.loads(weakness_content)
+    #         weaknesses=[]
 
-            for item in weakness_data:
-                weaknesses.append({
-                    "skill": item.get("skill"),
-                    "detail": item.get("weakness"),
-                    "suggestions": item.get("improvement_suggestions", []),
-                    "example": item.get("example_addition", "")
-                })
+    #         for item in weakness_data:
+    #             weaknesses.append({
+    #                 "skill": item.get("skill"),
+    #                 "detail": item.get("weakness"),
+    #                 "suggestions": item.get("improvement_suggestions", []),
+    #                 "example": item.get("example_addition", "")
+    #             })
 
-                self.improvement_suggestions[item.get("skill")] = {
-                    "suggestions": item.get("improvement_suggestions", []),
-                    "example": item.get("example_addition", "")
-                }
+    #             self.improvement_suggestions[item.get("skill")] = {
+    #                 "suggestions": item.get("improvement_suggestions", []),
+    #                 "example": item.get("example_addition", "")
+    #             }
 
-            self.resume_weaknesses = weaknesses
-            print("✅ weakness addresed properly")
-            return weaknesses
+    #         self.resume_weaknesses = weaknesses
+    #         print("✅ weakness addresed properly")
+    #         return weaknesses
 
-        except json.JSONDecodeError as e:
-            print("❌LLM returned invalid JSON:", e)
-            return [{
-                "skill": "unknown",
-                "detail": weakness_content[:300]
-            }]
+    #     except json.JSONDecodeError as e:
+    #         print("❌LLM returned invalid JSON:", e)
+    #         return [{
+    #             "skill": "unknown",
+    #             "detail": weakness_content[:300]
+    #         }]
     
     # def extract_skills_from_resume(self, rag_vectorstore):
     #     """Extract technical skills from a resume using RAG and LLM."""
@@ -998,28 +999,97 @@ e
         
     #     return analysis,self.resume_text,latex_code
 
-    def analyze_system(self, resume_file, role_requirements=None, custom_jd=None):
-        self.resume_text = self.extract_text_from_file(resume_file)
+    # def analyze_system(self, resume_file, role_requirements=None, custom_jd=None):
+    #     self.resume_text = self.extract_text_from_file(resume_file)
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            fut_rag = executor.submit(self.create_rag_vector_store, self.resume_text)
-            fut_contact = executor.submit(self.extract_contact_info, self.resume_text)
-            fut_extract = executor.submit(self.extract_info_from_resume, self.resume_text)
+    #     with ThreadPoolExecutor(max_workers=3) as executor:
+    #         fut_rag = executor.submit(self.create_rag_vector_store, self.resume_text)
+    #         fut_contact = executor.submit(self.extract_contact_info, self.resume_text)
+    #         fut_extract = executor.submit(self.extract_info_from_resume, self.resume_text)
 
-            skills, education, experience = fut_extract.result()
-            print(f"🔍 Raw extraction: {len(skills)} skills") 
-            self.rag_vectorstore = fut_rag.result()
-            contact_info = fut_contact.result()
+    #         skills, education, experience = fut_extract.result()
+    #         print(f"🔍 Raw extraction: {len(skills)} skills") 
+    #         self.rag_vectorstore = fut_rag.result()
+    #         contact_info = fut_contact.result()
+
+    #     analysis = self.compare_resume_jd_new(
+    #         skills=skills,
+    #         experience=experience,
+    #         education=education,
+    #         role_requirements=role_requirements,
+    #         custom_jd=custom_jd
+    #     )
+
+    #     analysis["contact_info"] = contact_info
+    #     print("✅ contact info add")
+    #     print("============================================================")
+    #     print(" ")
+    #     print("✅ everything add")
+    #     print(" ")
+    #     print("============================================================")
+    #     print(" ")
+
+
+
+    #     # if analysis.get("missing_skills"):
+    #     #     analysis["detailed_weaknesses"] = self.analyze_resume_weaknesses(analysis)
+    #     print(" ")
+    #     print("============================================================")
+    #     print(" ")
+    #     print(analysis)
+    #     print(" ")
+    #     print("============================================================")
+
+
+    #     return analysis, self.resume_text
+
+
+
+
+
+
+
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+
+    def preprocess_resume(self, resume_file, job_id):
+            """
+            Runs in background. Stores everything on self.
+            """
+            # 🔒 Set active job
+            self.job_id = job_id
+
+            self.resume_text = self.extract_text_from_file(resume_file)
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                fut_rag = executor.submit(self.create_rag_vector_store, self.resume_text)
+                fut_contact = executor.submit(self.extract_contact_info, self.resume_text)
+                fut_extract = executor.submit(self.extract_info_from_resume, self.resume_text)
+
+                self.skills, self.education, self.experience = fut_extract.result()
+                self.rag_vectorstore = fut_rag.result()
+                self.contact_info = fut_contact.result()
+
+            return job_id  # ONLY return job_id (no data passing)
+    
+    def analyze_system_new(self, role_requirements=None, custom_jd=None):
+        """
+        Uses internal state ONLY.
+        Must be called only after preprocessing finished.
+        """
 
         analysis = self.compare_resume_jd_new(
-            skills=skills,
-            experience=experience,
-            education=education,
+            skills=self.skills,
+            experience=self.experience,
+            education=self.education,
             role_requirements=role_requirements,
-            custom_jd=custom_jd
+            custom_jd=custom_jd,
         )
 
-        analysis["contact_info"] = contact_info
+        analysis["contact_info"] = self.contact_info
+
+        self.analysis_result = analysis
         print("✅ contact info add")
         print("============================================================")
         print(" ")
@@ -1043,62 +1113,102 @@ e
         return analysis, self.resume_text
 
 
+    # def analyze_system_new(self, resume_file, role_requirements=None, custom_jd=None):
+    #         self.resume_text = self.extract_text_from_file(resume_file)
+
+    #         with ThreadPoolExecutor(max_workers=3) as executor:
+    #             fut_rag = executor.submit(self.create_rag_vector_store, self.resume_text)
+    #             fut_contact = executor.submit(self.extract_contact_info, self.resume_text)
+    #             fut_extract = executor.submit(self.extract_info_from_resume, self.resume_text)
+
+    #             skills, education, experience = fut_extract.result()
+    #             print(f"🔍 Raw extraction: {len(skills)} skills") 
+    #             self.rag_vectorstore = fut_rag.result()
+    #             contact_info = fut_contact.result()
+
+    #         analysis = self.compare_resume_jd_new(
+    #             skills=skills,
+    #             experience=experience,
+    #             education=education,
+    #             role_requirements=role_requirements,
+    #             custom_jd=custom_jd
+    #         )
+
+    #         analysis["contact_info"] = contact_info
+    #         print("✅ contact info add")
+    #         print("============================================================")
+    #         print(" ")
+    #         print("✅ everything add")
+    #         print(" ")
+    #         print("============================================================")
+    #         print(" ")
 
 
 
+    #         # if analysis.get("missing_skills"):
+    #         #     analysis["detailed_weaknesses"] = self.analyze_resume_weaknesses(analysis)
+    #         print(" ")
+    #         print("============================================================")
+    #         print(" ")
+    #         print(analysis)
+    #         print(" ")
+    #         print("============================================================")
 
+
+    #         return analysis, self.resume_text
 
 ####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
 ####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
+####-------------------------------------------####-------------------------------------------####-------------------------------------------####-------------------------------------------
 
 
 
 
 
 
-    def semantic_skill_analysis(self, resume_text, skills):
-        """Analysis skills semantically"""
-        vectorstore = self.create_vector_store(resume_text)
-        retriever = vectorstore.as_retriever()
+    # def semantic_skill_analysis(self, resume_text, skills):
+    #     """Analysis skills semantically"""
+    #     vectorstore = self.create_vector_store(resume_text)
+    #     retriever = vectorstore.as_retriever()
         
-        skill_scores = {}
-        skill_reasoning = {}
-        missing_skills = []
-        total_score = 0
+    #     skill_scores = {}
+    #     skill_reasoning = {}
+    #     missing_skills = []
+    #     total_score = 0
 
-        # Thread pool to analyze skills in parallel
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            results = list(executor.map(
-                lambda skill: self.analyze_skill(skill, retriever),
-                skills
-            ))
+    #     # Thread pool to analyze skills in parallel
+    #     with ThreadPoolExecutor(max_workers=2) as executor:
+    #         results = list(executor.map(
+    #             lambda skill: self.analyze_skill(skill, retriever),
+    #             skills
+    #         ))
 
-        for skill, score, reasoning in results:
-            skill_scores[skill] = score
-            skill_reasoning[skill] = reasoning
-            total_score += score
-            if score <= 5:
-                missing_skills.append(skill)
+    #     for skill, score, reasoning in results:
+    #         skill_scores[skill] = score
+    #         skill_reasoning[skill] = reasoning
+    #         total_score += score
+    #         if score <= 5:
+    #             missing_skills.append(skill)
         
-        overall_score = int((total_score / (10 * len(skills))) * 100)
-        selected = overall_score >= self.cutoff_score
+    #     overall_score = int((total_score / (10 * len(skills))) * 100)
+    #     selected = overall_score >= self.cutoff_score
 
-        reasoning = "Candidate evaluated based on explicit resume content using semantic similarity and clear numeric scoring."
-        strengths = [skill for skill, score in skill_scores.items() if score >= 6]
-        improvement_areas = missing_skills if not selected else []
+    #     reasoning = "Candidate evaluated based on explicit resume content using semantic similarity and clear numeric scoring."
+    #     strengths = [skill for skill, score in skill_scores.items() if score >= 6]
+    #     improvement_areas = missing_skills if not selected else []
 
-        self.resume_strengths = strengths
+    #     self.resume_strengths = strengths
 
-        return {
-            "overall_score": overall_score,
-            "skill_scores": skill_scores,
-            "skill_reasoning": skill_reasoning,
-            "selected": selected,
-            "reasoning": reasoning,
-            "missing_skills": missing_skills,
-            "strengths": strengths,
-            "improvement_areas": improvement_areas
-        }
+    #     return {
+    #         "overall_score": overall_score,
+    #         "skill_scores": skill_scores,
+    #         "skill_reasoning": skill_reasoning,
+    #         "selected": selected,
+    #         "reasoning": reasoning,
+    #         "missing_skills": missing_skills,
+    #         "strengths": strengths,
+    #         "improvement_areas": improvement_areas
+    #     }
 
     def extract_contact_info(self,text):
         # Extract email and phone using regex
@@ -1247,6 +1357,174 @@ e
 
     #     return self.analysis_result,self.resume_text
 
+    # def evaluate_interview(self,conversation):
+
+    #     # Convert full conversation into raw transcript
+    #     raw_text = "\n".join([msg["text"] for msg in conversation])
+
+    #     prompt = f"""
+    # You are a professional interview evaluator.
+
+    # Below is a raw interview conversation between interviewer and candidate.
+
+    # Your task:
+    # - Automatically identify questions and responses.
+    # - Evaluate each answer.
+    # - Score each answer out of 10.
+    # - Provide strengths and improvements.
+    # - Provide overall score.
+    # - Provide final hiring recommendation.
+
+    # Return ONLY valid JSON in this format:
+
+    # {{
+    # "questions": [
+    #     {{
+    #     "question": "...",
+    #     "answer_summary": "...",
+    #     "score": 0,
+    #     "strengths": "...",
+    #     "improvements": "..."
+    #     }}
+    # ],
+    # "overall_score": 0,
+    # "final_summary": "...",
+    # "recommendation": "Hire / Strong Hire / No Hire / Maybe"
+    # }}
+
+    # Interview Conversation:
+    # {raw_text}
+    # """
+
+    #     response = safe_llm_invoke(self.llm, prompt).content.strip()
+
+    #     try:
+    #         return json.loads(response)
+    #     except:
+    #         return {
+    #             "error": "Model did not return valid JSON",
+    #             "raw_output": response
+    #         }
+    
+
+    # def evaluate_interview(self, conversation):
+    #     print("\n--- Starting Interview Evaluation ---")
+        
+    #     # 1. Check if conversation exists
+    #     if not conversation or not isinstance(conversation, list):
+    #         print("ERROR: Conversation is empty or not a list")
+    #         return {"error": "No conversation data provided to evaluator"}
+
+    #     try:
+    #         # 2. Extract text and check for content
+    #         raw_text = "\n".join([msg.get("text", "") for msg in conversation if "text" in msg])
+    #         print(f"DEBUG: Transcript character count: {len(raw_text)}")
+            
+    #         if len(raw_text.strip()) < 10:
+    #             print("ERROR: Transcript is too short to evaluate")
+    #             return {"error": "Transcript is too short. Did the candidate speak?"}
+
+    #         # 3. Check LLM availability
+    #         if not hasattr(self, 'llm') or self.llm is None:
+    #             print("ERROR: self.llm is not initialized in ResumeAnalysisAgent")
+    #             return {"error": "LLM agent not initialized on backend"}
+
+    #         prompt = f"""
+    #         You are a professional interview evaluator. Return ONLY valid JSON.
+    #         Format:
+    #         {{
+    #             "questions": [{{ "question": "...", "answer_summary": "...", "score": 0, "strengths": "...", "improvements": "..." }}],
+    #             "overall_score": 0,
+    #             "final_summary": "...",
+    #             "recommendation": "Hire"
+    #         }}
+    #         Conversation:
+    #         {raw_text}
+    #         """
+
+    #         print("DEBUG: Calling LLM (safe_llm_invoke)...")
+    #         # 4. Invoke LLM and catch internal failures
+    #         llm_response = safe_llm_invoke(self.llm, prompt)
+            
+    #         if not llm_response or not hasattr(llm_response, 'content'):
+    #             print("ERROR: LLM returned an empty or invalid object")
+    #             return {"error": "LLM failed to return content"}
+
+    #         response_content = llm_response.content.strip()
+    #         print(f"DEBUG: LLM Response received (Length: {len(response_content)})")
+
+    #         # 5. Clean JSON (Remove markdown code blocks if LLM added them)
+    #         clean_json = re.sub(r'^```json\s*|```$', '', response_content, flags=re.MULTILINE).strip()
+
+    #         try:
+    #             return json.loads(clean_json)
+    #         except json.JSONDecodeError as e:
+    #             print(f"ERROR: JSON Parsing failed: {e}")
+    #             return {
+    #                 "error": "Model returned invalid JSON format",
+    #                 "raw_output": response_content[:500] # Send back snippet for debugging
+    #             }
+
+    #     except Exception as e:
+    #         # This catches "Hidden" errors like undefined variables or attribute errors
+    #         error_stack = traceback.format_exc()
+    #         print(f"CRITICAL SYSTEM ERROR:\n{error_stack}")
+    #         return {"error": f"Internal Logic Error: {str(e)}"}
+
+    def evaluate_interview(self, conversation):
+        if not conversation or not isinstance(conversation, list):
+            return {"error": "Invalid conversation format"}
+
+        try:
+            # Extract only the plain text from messages
+            formatted_text = "\n".join(msg.get("text", "").strip() for msg in conversation if msg.get("text"))
+
+            if len(formatted_text.strip()) < 20:
+                return {"error": "Conversation too short for evaluation"}
+
+            # Build prompt
+            prompt = f"""
+    You are a professional interview evaluator.
+
+    Analyze this interview and return ONLY valid JSON.
+
+    Format:
+    {{
+    "questions": [
+        {{
+        "question": "...",
+        "answer_summary": "...",
+        "score": score from 0 to 10,
+        "strengths": "...",
+        "improvements": "..."
+        }}
+    ],
+    "overall_score": score from 0 to 10,
+    "final_summary": "...",
+    "recommendation": "Hire / Strong Hire / No Hire / Maybe"
+    }}
+
+    Interview:
+    {formatted_text}
+    """
+
+            llm_response = safe_llm_invoke(self.llm, prompt)
+
+            if not llm_response or not hasattr(llm_response, "content"):
+                return {"error": "LLM returned invalid response"}
+
+            content = llm_response.content.strip()
+
+            # Extract JSON safely from LLM output
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if not match:
+                return {"error": "No JSON found in LLM response"}
+
+            return json.loads(match.group(0))
+
+        except Exception as e:
+            return {"error": f"Evaluation failed: {str(e)}"}
+
 
     def ask_question(self, question):
         """Ask a question about the resume"""
@@ -1265,6 +1543,7 @@ e
         
         prompt = f""" You are strict prompt follower and analyze carefully the prompt and do what only that prompt say,
         You are a helpful assistant answering questions about a resume.
+        Response should be plain text only ,DONT include any special characters 
         
         Based on the following resume content only, answer the user's question accurately and concisely.
         
@@ -1279,215 +1558,215 @@ e
         response = self.llm.invoke(prompt)
         return response.content.strip() #######################
         
-    def generate_interview_questions(self,question_types,difficulty,num_questions):
-        """Generate interview questions based on the resume"""
-        if not self.resume_text or not self.extracted_skills:
-            return []
-        try:
-            # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
+    # def generate_interview_questions(self,question_types,difficulty,num_questions):
+    #     """Generate interview questions based on the resume"""
+    #     if not self.resume_text or not self.extracted_skills:
+    #         return []
+    #     try:
+    #         # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
 
-            context=f"""
-                Resume Context:
-                {self.resume_text[:2000]}...
+    #         context=f"""
+    #             Resume Context:
+    #             {self.resume_text[:2000]}...
 
-                Skills to focus on: {', '.join(self.extracted_skills)}
-                Strengths: {', '.join(self.analysis_result.get('strengths',[]))}
-                Areas of improvement: {', '.join(self.analysis_result.get('missing_skills',[]))}
-                """
-            prompt=f"""
-                You are strict prompt follower and do what only that prompt say,
-                    Generate {num_questions} personalized {difficulty.lower()} level
-                    interview questions for this candidate based on their resume and skills.Include only the following question
-                    types: {', '.join(question_types)}.
+    #             Skills to focus on: {', '.join(self.extracted_skills)}
+    #             Strengths: {', '.join(self.analysis_result.get('strengths',[]))}
+    #             Areas of improvement: {', '.join(self.analysis_result.get('missing_skills',[]))}
+    #             """
+    #         prompt=f"""
+    #             You are strict prompt follower and do what only that prompt say,
+    #                 Generate {num_questions} personalized {difficulty.lower()} level
+    #                 interview questions for this candidate based on their resume and skills.Include only the following question
+    #                 types: {', '.join(question_types)}.
 
-                    For each question:
-                    1. Clearly label the question type
-                    3. Make the question specific to their background and skills
-                    3. For coding questions,include a clear problem statement
+    #                 For each question:
+    #                 1. Clearly label the question type
+    #                 3. Make the question specific to their background and skills
+    #                 3. For coding questions,include a clear problem statement
 
-                    {context}
+    #                 {context}
 
-                    Format the response as a list of tuples with the question type and the question itself.
-                    Each tuple should be in the format: ("Question Type","Full Question Text")
-                    """
+    #                 Format the response as a list of tuples with the question type and the question itself.
+    #                 Each tuple should be in the format: ("Question Type","Full Question Text")
+    #                 """
             
-            # response=llm.invoke(prompt)
-            # questions_text=response.content################################
-            questions_text = safe_llm_invoke(self.llm, prompt).content
+    #         # response=llm.invoke(prompt)
+    #         # questions_text=response.content################################
+    #         questions_text = safe_llm_invoke(self.llm, prompt).content
 
-            questions=[]
-            pattern=r'[("]([^"]+)[",)\s]+[(",\s]+([^"]+)[")\s]+'
-            matches=re.findall(pattern,questions_text,re.DOTALL)
+    #         questions=[]
+    #         pattern=r'[("]([^"]+)[",)\s]+[(",\s]+([^"]+)[")\s]+'
+    #         matches=re.findall(pattern,questions_text,re.DOTALL)
 
-            for match in matches:
-                if len(match)>=2:
-                    question_type=match[0].strip()
-                    question=match[1].strip()
+    #         for match in matches:
+    #             if len(match)>=2:
+    #                 question_type=match[0].strip()
+    #                 question=match[1].strip()
 
-                    for requested_type in question_types:
-                        if requested_type.lower() in question_type.lower():
-                            questions.append((requested_type,question))
-                            break
+    #                 for requested_type in question_types:
+    #                     if requested_type.lower() in question_type.lower():
+    #                         questions.append((requested_type,question))
+    #                         break
 
-            if not questions:
-                lines=questions_text.split('\n')
-                current_type=None
-                current_question=""
+    #         if not questions:
+    #             lines=questions_text.split('\n')
+    #             current_type=None
+    #             current_question=""
 
-                for line in lines:
-                    line=line.strip()
-                    if any(t.lower() in line.lower() for t in question_types) and not current_question:
-                        current_type=next((t for t in question_types if t.lower() in line.lower()),None)
-                        if ":" in line:
-                            current_question=line.split(":",1)[1].strip()
-                    elif current_type and line:
-                        current_question+=" "+line
-                    elif current_type and current_question:
-                        questions.append((current_type,current_question))
-                        current_type=None
-                        current_question=""
+    #             for line in lines:
+    #                 line=line.strip()
+    #                 if any(t.lower() in line.lower() for t in question_types) and not current_question:
+    #                     current_type=next((t for t in question_types if t.lower() in line.lower()),None)
+    #                     if ":" in line:
+    #                         current_question=line.split(":",1)[1].strip()
+    #                 elif current_type and line:
+    #                     current_question+=" "+line
+    #                 elif current_type and current_question:
+    #                     questions.append((current_type,current_question))
+    #                     current_type=None
+    #                     current_question=""
 
-            questions=questions[:num_questions]
+    #         questions=questions[:num_questions]
 
-            return questions
-        except Exception as e:
-            print(f"Error generating interview questions: {e}")
-            return []
+    #         return questions
+    #     except Exception as e:
+    #         print(f"Error generating interview questions: {e}")
+    #         return []
         
-    def improve_resume(self,improvement_areas,target_role=""):
-        """Generate suggestions to improve the resume"""
-        if not self.resume_text:
-            return {}
+    # def improve_resume(self,improvement_areas,target_role=""):
+    #     """Generate suggestions to improve the resume"""
+    #     if not self.resume_text:
+    #         return {}
         
-        try:
-            improvements={}
-            for area in improvement_areas:
-                if area=="Skills Highlighting" and self.resume_weaknesses:
-                    skill_improvements={
-                        "description":"Your resume needs to better highlight key skills that are important for the role.",
-                        "specific":[] 
-                    }
+    #     try:
+    #         improvements={}
+    #         for area in improvement_areas:
+    #             if area=="Skills Highlighting" and self.resume_weaknesses:
+    #                 skill_improvements={
+    #                     "description":"Your resume needs to better highlight key skills that are important for the role.",
+    #                     "specific":[] 
+    #                 }
 
-                    before_after_examples={}
-                    for weakness in self.resume_weaknesses:
-                        skill_name=weakness.get("skill","")
-                        if "suggestions" in weakness and weakness["suggestions"]:
-                            for suggestion in weakness["suggestions"]:
-                                skill_improvements["specific"].append(f"**{skill_name}**: {suggestion}")
+    #                 before_after_examples={}
+    #                 for weakness in self.resume_weaknesses:
+    #                     skill_name=weakness.get("skill","")
+    #                     if "suggestions" in weakness and weakness["suggestions"]:
+    #                         for suggestion in weakness["suggestions"]:
+    #                             skill_improvements["specific"].append(f"**{skill_name}**: {suggestion}")
 
-                        if "example" in weakness and weakness["example"]:
-                            resume_chunks=self.resume_text.split('\n\n')
-                            relevant_chunk=""
+    #                     if "example" in weakness and weakness["example"]:
+    #                         resume_chunks=self.resume_text.split('\n\n')
+    #                         relevant_chunk=""
 
-                            for chunk in resume_chunks:
-                                if skill_name.lower() in chunk.lower() or "experience" in chunk.lower():
-                                    relevant_chunk=chunk
-                                    break
-                            if relevant_chunk:
-                                before_after_examples={
-                                    "before":relevant_chunk.strip(),
-                                    "after":relevant_chunk.strip()+"\n· "+weakness["example"]
-                                }
-                    if before_after_examples:
-                        skill_improvements["before_after"]=before_after_examples
-                    improvements["Skills Highlighting"]=skill_improvements
-            remaining_areas=[area for area in improvement_areas if area not in improvements]
+    #                         for chunk in resume_chunks:
+    #                             if skill_name.lower() in chunk.lower() or "experience" in chunk.lower():
+    #                                 relevant_chunk=chunk
+    #                                 break
+    #                         if relevant_chunk:
+    #                             before_after_examples={
+    #                                 "before":relevant_chunk.strip(),
+    #                                 "after":relevant_chunk.strip()+"\n· "+weakness["example"]
+    #                             }
+    #                 if before_after_examples:
+    #                     skill_improvements["before_after"]=before_after_examples
+    #                 improvements["Skills Highlighting"]=skill_improvements
+    #         remaining_areas=[area for area in improvement_areas if area not in improvements]
 
-            if remaining_areas:
-                # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
+    #         if remaining_areas:
+    #             # llm=ChatGroq(model='llama-3.1-8b-instant',api_key=self.api_key)
 
-                # Create a context with resume analysis and weakness
-                weaknesses_text=""
-                if self.resume_weaknesses:
-                    weaknesses_text="Resume Weaknesses:\n"
-                    for i,weakness in enumerate(self.resume_weaknesses):
-                        weaknesses_text+=f"{i+1}. {weakness['skill']}: {weakness['detail']}\n"
-                        if "suggestions" in weakness:
-                            for j,sugg in enumerate(weakness["suggestions"]):
-                                weaknesses_text+=f"  - {sugg}\n"
-                context=f"""
-                Resume Content:
-                {self.resume_text}
+    #             # Create a context with resume analysis and weakness
+    #             weaknesses_text=""
+    #             if self.resume_weaknesses:
+    #                 weaknesses_text="Resume Weaknesses:\n"
+    #                 for i,weakness in enumerate(self.resume_weaknesses):
+    #                     weaknesses_text+=f"{i+1}. {weakness['skill']}: {weakness['detail']}\n"
+    #                     if "suggestions" in weakness:
+    #                         for j,sugg in enumerate(weakness["suggestions"]):
+    #                             weaknesses_text+=f"  - {sugg}\n"
+    #             context=f"""
+    #             Resume Content:
+    #             {self.resume_text}
 
-                Skills to focus on: {', '.join(self.extracted_skills)}
-                Strengths: {', '.join(self.analysis_result.get('strengths',[]))}
-                Areas for improvement: {', '.join(self.analysis_result.get('missing_skills',[]))}
+    #             Skills to focus on: {', '.join(self.extracted_skills)}
+    #             Strengths: {', '.join(self.analysis_result.get('strengths',[]))}
+    #             Areas for improvement: {', '.join(self.analysis_result.get('missing_skills',[]))}
 
-                {weaknesses_text}
+    #             {weaknesses_text}
 
-                Target role: {target_role if target_role else "Not specified"}
+    #             Target role: {target_role if target_role else "Not specified"}
 
-                """
+    #             """
 
-                prompt=f"""
-                You are strict prompt follower and do what only that prompt say,
-                Provide detailed suggestions to improve this resume in the following areas: {', '.join(remaining_areas)}.
+    #             prompt=f"""
+    #             You are strict prompt follower and do what only that prompt say,
+    #             Provide detailed suggestions to improve this resume in the following areas: {', '.join(remaining_areas)}.
                 
-                {context}
+    #             {context}
 
-                For each improvement area,provide:
-                1. A general description of what needs improvement
-                2. 3-5 specific actionable suggestions
-                3. Where relevant,provide a before/after example
+    #             For each improvement area,provide:
+    #             1. A general description of what needs improvement
+    #             2. 3-5 specific actionable suggestions
+    #             3. Where relevant,provide a before/after example
 
-                Format the response as a JSON onject with improvement areaa as keys ,each containing:
-                - "description":general description
-                - "specific": list of specific suggestions
-                - "before_after": (where applicable) a dict with "before" and "after" examples
+    #             Format the response as a JSON onject with improvement areaa as keys ,each containing:
+    #             - "description":general description
+    #             - "specific": list of specific suggestions
+    #             - "before_after": (where applicable) a dict with "before" and "after" examples
 
-                Only include the requested improvement area that aren't already covered.
-                Focus particularly on addressing the resume weaknesses identified. 
-                """
+    #             Only include the requested improvement area that aren't already covered.
+    #             Focus particularly on addressing the resume weaknesses identified. 
+    #             """
 
-                # response=llm.invoke(prompt)
-                response = safe_llm_invoke(self.llm, prompt)
+    #             # response=llm.invoke(prompt)
+    #             response = safe_llm_invoke(self.llm, prompt)
 
-                # Try to parse JSON from the response
-                ai_improvements={}
+    #             # Try to parse JSON from the response
+    #             ai_improvements={}
 
-                #Extract from markdown code blocks if present
-                json_match=re.search(r'```(?:json)?\s*([\s\S]+?)\s*```',response.content)
-                if json_match:
-                    try:
-                        ai_improvements=json.loads(json_match.group(1))
-                        # Merge with existing improvements
-                        improvements.update(ai_improvements)
-                    except json.JSONDecodeError:
-                        pass
+    #             #Extract from markdown code blocks if present
+    #             json_match=re.search(r'```(?:json)?\s*([\s\S]+?)\s*```',response.content)
+    #             if json_match:
+    #                 try:
+    #                     ai_improvements=json.loads(json_match.group(1))
+    #                     # Merge with existing improvements
+    #                     improvements.update(ai_improvements)
+    #                 except json.JSONDecodeError:
+    #                     pass
 
-                # If json parsing failed , create structured output manually
-                if not ai_improvements:
-                    sections=response.content.split("##")
+    #             # If json parsing failed , create structured output manually
+    #             if not ai_improvements:
+    #                 sections=response.content.split("##")
 
-                    for section in  sections:
-                        if not section.strip():
-                            continue
-                        lines=section.strip().split("\n")
-                        area=None
+    #                 for section in  sections:
+    #                     if not section.strip():
+    #                         continue
+    #                     lines=section.strip().split("\n")
+    #                     area=None
 
-                        for line in lines:
-                            if not area and line.strip():
-                                area=line.strip()
-                                improvements[area]={
-                                    "description":"",
-                                    "specific":[]
-                                }
-                            elif area and "specific" in improvements[area]:
-                                if line.strip().startswith("- "):
-                                    improvements[area]["specific"].append(line.strip()[2:])
-                                elif not improvements[area]["description"]:
-                                    improvements[area]["description"]+=line.strip()
-            # Ensure all requested area are included
-            for area in improvement_areas:
-                if area not in improvements:
-                    improvements[area]={
-                        "description":f"Improvements needed in {area}",
-                        "specific":["Review and enhance this section"]
-                    }
-            return improvements
-        except Exception as e:
-            print(f"Error generating resume improvements: {e}")
-            return {area:{"description":"Error generating suggestions","specific":[]} for area in improvement_areas}
+    #                     for line in lines:
+    #                         if not area and line.strip():
+    #                             area=line.strip()
+    #                             improvements[area]={
+    #                                 "description":"",
+    #                                 "specific":[]
+    #                             }
+    #                         elif area and "specific" in improvements[area]:
+    #                             if line.strip().startswith("- "):
+    #                                 improvements[area]["specific"].append(line.strip()[2:])
+    #                             elif not improvements[area]["description"]:
+    #                                 improvements[area]["description"]+=line.strip()
+    #         # Ensure all requested area are included
+    #         for area in improvement_areas:
+    #             if area not in improvements:
+    #                 improvements[area]={
+    #                     "description":f"Improvements needed in {area}",
+    #                     "specific":["Review and enhance this section"]
+    #                 }
+    #         return improvements
+    #     except Exception as e:
+    #         print(f"Error generating resume improvements: {e}")
+    #         return {area:{"description":"Error generating suggestions","specific":[]} for area in improvement_areas}
 
 
     # def get_improved_resume(self,target_role="",highlight_skills=""):
@@ -1585,15 +1864,15 @@ e
     #         print(f"Error generating improved resume: {e}")
     #         return "Error generating improved resume. Please try again."
 
-    def cleanup(self):
-        """Clean up temporary files"""
-        try:
-            if hasattr(self,'resume_file_path') and os.path.exists(self.resume_file_path):
-                os.unlink(self.resume_file_path)
-            if hasattr(self,'improved_resume_path') and os.path.exists(self.improved_resume_path):
-                os.unlink(self.improved_resume_path)
-        except Exception as e:
-            print("Error cleaning up temporary files: {e}")
+    # def cleanup(self):
+    #     """Clean up temporary files"""
+    #     try:
+    #         if hasattr(self,'resume_file_path') and os.path.exists(self.resume_file_path):
+    #             os.unlink(self.resume_file_path)
+    #         if hasattr(self,'improved_resume_path') and os.path.exists(self.improved_resume_path):
+    #             os.unlink(self.improved_resume_path)
+    #     except Exception as e:
+    #         print("Error cleaning up temporary files: {e}")
 
 ########################################################################################################################################################################################################
 
@@ -2453,78 +2732,78 @@ e
             return "Error generating latex code. Please try again."
         
 
-    def verify_and_correct_latex_resume(self, improved_resume, analysis_result,template):
-        """Verify and correct the LaTeX resume by cross-referencing with the original resume data."""
+    # def verify_and_correct_latex_resume(self, improved_resume, analysis_result,template):
+    #     """Verify and correct the LaTeX resume by cross-referencing with the original resume data."""
         
-        # Define the verification and correction prompt
-        prompt = f"""
-        IMPORTANT:
-            - You MUST return a COMPLETE LaTeX document
-            - Output MUST start with \\hdocumentclass
-            - Output MUST end with \\end{{document}}
-            - Do NOT return partial edits, explanations, or markdown
-            - If no changes are required, return the original LaTeX unchanged
+    #     # Define the verification and correction prompt
+    #     prompt = f"""
+    #     IMPORTANT:
+    #         - You MUST return a COMPLETE LaTeX document
+    #         - Output MUST start with \\hdocumentclass
+    #         - Output MUST end with \\end{{document}}
+    #         - Do NOT return partial edits, explanations, or markdown
+    #         - If no changes are required, return the original LaTeX unchanged
 
-        You are a language model tasked with verifying and correcting a LaTeX code resume. The resume has been automatically generated by ai tool-"Improved Resume generator" based on the provided `resume_text` and `analysis_result`. Your task is to **cross-verify** the LaTeX code resume content and make any necessary corrections.
+    #     You are a language model tasked with verifying and correcting a LaTeX code resume. The resume has been automatically generated by ai tool-"Improved Resume generator" based on the provided `resume_text` and `analysis_result`. Your task is to **cross-verify** the LaTeX code resume content and make any necessary corrections.
 
-        Instructions:
-        1. Review the LaTeX code resume provided below and ensure it **accurately reflects** the information in `resume_text` and `analysis_result`.
-        2. Specifically, do the following:
-            - **Ensure all sections are present and correctly labeled** (e.g., Experience, Skills, Education, Projects, Achievements, etc.).
-            - **Ensure the content within each section** (e.g., job responsibilities, achievements, etc.) **matches the information** in `resume_text` and `analysis_result`. Cross-reference skills, job roles, responsibilities, achievements, and education.
-            - **Ensure that no new content, fabricated achievements, or hallucinated details** are added to the LaTeX code resume. If any content in the LaTeX code does not exist in the `resume_text` or `analysis_result`, remove it or replace it with the correct information.
-            - **Modify the LaTeX content if any discrepancies are found** (e.g., if a skill or achievement in the LaTeX code resume was not mentioned in the original data, remove or update it).
-            - If any **missing sections** or incorrect details are found in the LaTeX code resume, correct them based on the original resume data.
+    #     Instructions:
+    #     1. Review the LaTeX code resume provided below and ensure it **accurately reflects** the information in `resume_text` and `analysis_result`.
+    #     2. Specifically, do the following:
+    #         - **Ensure all sections are present and correctly labeled** (e.g., Experience, Skills, Education, Projects, Achievements, etc.).
+    #         - **Ensure the content within each section** (e.g., job responsibilities, achievements, etc.) **matches the information** in `resume_text` and `analysis_result`. Cross-reference skills, job roles, responsibilities, achievements, and education.
+    #         - **Ensure that no new content, fabricated achievements, or hallucinated details** are added to the LaTeX code resume. If any content in the LaTeX code does not exist in the `resume_text` or `analysis_result`, remove it or replace it with the correct information.
+    #         - **Modify the LaTeX content if any discrepancies are found** (e.g., if a skill or achievement in the LaTeX code resume was not mentioned in the original data, remove or update it).
+    #         - If any **missing sections** or incorrect details are found in the LaTeX code resume, correct them based on the original resume data.
 
-        LaTeX code Resume:
-        improved_resume={improved_resume}
+    #     LaTeX code Resume:
+    #     improved_resume={improved_resume}
 
-        Original Resume Data:
-        Resume Text: {self.resume_text}
-        Comparison result with Job description
-        Analysis Result: {analysis_result}
+    #     Original Resume Data:
+    #     Resume Text: {self.resume_text}
+    #     Comparison result with Job description
+    #     Analysis Result: {analysis_result}
 
-        Output:
-        - **If the LaTeX code resume is correct and matches the original resume data**, simply return the original LaTeX code resume.
-        - **If any corrections are needed**, update the content only in LaTeX code to ensure all content is correct. Provide the updated LaTeX code with corrections.
-        - **Do not add new sections or content that doesn't exist in the original data.** Only modify or remove content that is incorrect or fabricated.
+    #     Output:
+    #     - **If the LaTeX code resume is correct and matches the original resume data**, simply return the original LaTeX code resume.
+    #     - **If any corrections are needed**, update the content only in LaTeX code to ensure all content is correct. Provide the updated LaTeX code with corrections.
+    #     - **Do not add new sections or content that doesn't exist in the original data.** Only modify or remove content that is incorrect or fabricated.
 
-        **Return the LaTeX code with the corrected content in template skeleton-{template} and return the same output format as "improved_resume"**.
-        """
+    #     **Return the LaTeX code with the corrected content in template skeleton-{template} and return the same output format as "improved_resume"**.
+    #     """
 
-        try:
-            # Step 1: Invoke LLM with the verification and correction prompt
-            response = safe_llm_invoke(self.llm, prompt)
+    #     try:
+    #         # Step 1: Invoke LLM with the verification and correction prompt
+    #         response = safe_llm_invoke(self.llm, prompt)
             
-            # Step 2: Extract the updated LaTeX content
-            corrected_resume = self.clean_latex(response.content.strip())
+    #         # Step 2: Extract the updated LaTeX content
+    #         corrected_resume = self.clean_latex(response.content.strip())
             
-            if not corrected_resume:
-                raise ValueError("The LLM response did not return any LaTeX code.")
+    #         if not corrected_resume:
+    #             raise ValueError("The LLM response did not return any LaTeX code.")
             
-            # Step 4: Validate the LaTeX format
-            if not corrected_resume.startswith(r"\documentclass") or not corrected_resume.endswith(r"\end{document}"):
-                raise ValueError("The corrected LaTeX content is not valid LaTeX format.")
+    #         # Step 4: Validate the LaTeX format
+    #         if not corrected_resume.startswith(r"\documentclass") or not corrected_resume.endswith(r"\end{document}"):
+    #             raise ValueError("The corrected LaTeX content is not valid LaTeX format.")
             
-            # Step 5: Save the LaTeX resume to a temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.tex', mode='w', encoding='utf-8') as tmp:
-                tmp.write(corrected_resume)
-                self.improved_resume_path = tmp.name  # Save the path to the file for later use
+    #         # Step 5: Save the LaTeX resume to a temporary file
+    #         with tempfile.NamedTemporaryFile(delete=False, suffix='.tex', mode='w', encoding='utf-8') as tmp:
+    #             tmp.write(corrected_resume)
+    #             self.improved_resume_path = tmp.name  # Save the path to the file for later use
             
-            # Step 3: Return the corrected LaTeX code
-            print("✅ LaTeX resume has been verified and corrected.")
-            return corrected_resume
+    #         # Step 3: Return the corrected LaTeX code
+    #         print("✅ LaTeX resume has been verified and corrected.")
+    #         return corrected_resume
 
-        except Exception as e:
-            raise ValueError(f"Error during LaTeX resume verification and correction: {e}")
-            return improved_resume
+    #     except Exception as e:
+    #         raise ValueError(f"Error during LaTeX resume verification and correction: {e}")
+    #         return improved_resume
 
-    def clean_latex(self,text: str) -> str:
-        start = text.find(r"\documentclass")
-        end = text.rfind(r"\end{document}")
-        if start != -1 and end != -1:
-            return text[start:end + len(r"\end{document}")]
-        return text
+    # def clean_latex(self,text: str) -> str:
+    #     start = text.find(r"\documentclass")
+    #     end = text.rfind(r"\end{document}")
+    #     if start != -1 and end != -1:
+    #         return text[start:end + len(r"\end{document}")]
+    #     return text
 
  
     
@@ -2538,7 +2817,10 @@ class Implement:
 
     def analyze_resume(self,resume_file,role=None,custom_jd=None):
         """Analyze the resume with the agent"""
-        return self.agent.analyze_system(resume_file,role,custom_jd)
+        return self.agent.analyze_system_new(role,custom_jd)
+    
+    def preprocess_resume(self,resume_file,new_job_id):
+        return self.agent.preprocess_resume(resume_file,new_job_id)
     
         
     def ask_question(self,question):
@@ -2549,26 +2831,33 @@ class Implement:
                 return response
         except Exception as e:
             return f"Error: {e}"
-        
-    def generate_interview_questions(self,question_types,difficulty,num_questions):
-        """Generate interview question based on the resume"""
+
+    def feedback_interview(self,conversation):
+        """Feedback report to the Interview"""
         try:
-            with st.spinner("Generating personalized interview questions..."):
-                questions=self.agent.generate_interview_questions(question_types,difficulty,num_questions)
-                return questions
+            return self.agent.evaluate_interview(conversation)
+        except Exception as e:
+            return f"Error:{e}"
+        
+    # def generate_interview_questions(self,question_types,difficulty,num_questions):
+    #     """Generate interview question based on the resume"""
+    #     try:
+    #         with st.spinner("Generating personalized interview questions..."):
+    #             questions=self.agent.generate_interview_questions(question_types,difficulty,num_questions)
+    #             return questions
             
-        except Exception as e:
-            st.error(f"Error generating questions: {e}")
-            return []
+    #     except Exception as e:
+    #         st.error(f"Error generating questions: {e}")
+    #         return []
         
-    def improve_resume(self,improvement_areas,target_role):
-        """Generate resume improvement suggestions"""
-        try:
-            with st.spinner("Analyzing and generating improvements...."):
-                return self.agent.improve_resume(improvement_areas,target_role)
-        except Exception as e:
-            st.error(f"Error generating improvements: {e}")
-            return {}
+    # def improve_resume(self,improvement_areas,target_role):
+    #     """Generate resume improvement suggestions"""
+    #     try:
+    #         with st.spinner("Analyzing and generating improvements...."):
+    #             return self.agent.improve_resume(improvement_areas,target_role)
+    #     except Exception as e:
+    #         st.error(f"Error generating improvements: {e}")
+    #         return {}
             
     def get_improved_resume(self, analysis_result):
         try:

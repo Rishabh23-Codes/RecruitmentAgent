@@ -10,6 +10,19 @@ from ui_utils import role_requirements,resume_qa_section
 import subprocess
 import base64
 from pathlib import Path
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+import requests
+import streamlit.components.v1 as components
+
+# --------------------------------------------------
+# Thread executor (global)
+
+executor = ThreadPoolExecutor(max_workers=2)
+
+
+# --------------------------------------------------
 
 def render_latex_to_pdf(latex_code):
         try:
@@ -88,6 +101,14 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+# st.set_page_config(
+#     page_title="Professional Job Search Assistant",
+#     page_icon="https://img.freepik.com/premium-photo/web-development-concept-with-person-using-laptop-computer_1158146-32204.jpg?semt=ais_hybrid&w=740&q=80",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
+
+
 
 #Custom CSS
 apply_styling()
@@ -99,52 +120,66 @@ def load_resources():
     from utils.resume_parser import ResumeParser
     from utils.serp_api_searcher import SerpApiSearcher
     from utils.resume_keyword_extractor import ResumeContextExtractor
-    from agents.resume_agent import ResumeAgent
+    # from agents.resume_agent import ResumeAgent
     from agents.job_search_agent import JobSearchAgent
     from agents.interview_agent import InterviewAgent
-    from agents.analysis_agent import Implement
+    # from agents.analysis_agent import Implement
 
     resume_parser=ResumeParser()
-    resume_agent=ResumeAgent()
+    # resume_agent=ResumeAgent()
     job_search_agent=JobSearchAgent()
     interview_agent=InterviewAgent()
     serp_api_searcher=SerpApiSearcher()
     keyword_extractor=ResumeContextExtractor()
-    analysis_agent=Implement()
+    # analysis_agent=Implement()
 
 
     return {
         "resume_parser":resume_parser,
-        "resume_agent": resume_agent,
+        # "resume_agent": resume_agent,
         "job_search_agent": job_search_agent,
         "interview_agent": interview_agent,
         "serp_api_searcher": serp_api_searcher,
         "keyword_extractor": keyword_extractor,
-        "analysis_agent":analysis_agent
+        # "analysis_agent":analysis_agent
     }
 
 # Load resources
 resources=load_resources()
 
 # Application header with gradient using color palette
-st.markdown(f"""
-    <div style='text-align:center; padding: 1.5rem 0; 
-    background: linear-gradient(90deg, {COLORS["primary"]}, {COLORS["secondary"]}, {COLORS["tertiary"]}); 
-    border-radius: 12px; margin-bottom: 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'>
-        <h1 style='color: white; font-size: 2.5rem; margin-bottom: 0.5rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.3);'>
-        Professional Job Search Assistant</h1>
-        <p style='color: white; font-size: 1.2rem; font-weight: 500; margin: 0.5rem 2rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);'>
-        <span style='background-color: rgba(0,0,0,0.15); padding: 4px 12px; border-radius: 20px; margin: 0 5px;'>
-        AI-powered job search</span> 
-        <span style='background-color: rgba(0,0,0,0.15); padding: 4px 12px; border-radius: 20px; margin: 0 5px;'>
-        Resume analysis</span> 
-        <span style='background-color: rgba(0,0,0,0.15); padding: 4px 12px; border-radius: 20px; margin: 0 5px;'>
-        Interview preparation</span>
-        </p>
-    </div>  
-    """,unsafe_allow_html=True)
+# st.markdown(f"""
+#     <div style='text-align:center; padding: 1.5rem 0; 
+#     background: linear-gradient(90deg, {COLORS["primary"]}, {COLORS["secondary"]}, {COLORS["tertiary"]}); 
+#     border-radius: 12px; margin-bottom: 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'>
+#         <h1 style='color: white; font-size: 2.5rem; margin-bottom: 0.5rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.3);'>
+#         Professional Job Search Assistant</h1>
+#         <p style='color: white; font-size: 1.2rem; font-weight: 500; margin: 0.5rem 2rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);'>
+#         <span style='background-color: rgba(0,0,0,0.15); padding: 4px 12px; border-radius: 20px; margin: 0 5px;'>
+#         AI-powered job search</span> 
+#         <span style='background-color: rgba(0,0,0,0.15); padding: 4px 12px; border-radius: 20px; margin: 0 5px;'>
+#         Resume analysis</span> 
+#         <span style='background-color: rgba(0,0,0,0.15); padding: 4px 12px; border-radius: 20px; margin: 0 5px;'>
+#         Interview preparation</span>
+#         </p>
+#     </div>  
+#     """,unsafe_allow_html=True)
+st.markdown("""
+<style>
+header {visibility: hidden;}
+.block-container { padding-top: 0rem; }
+</style>
+""", unsafe_allow_html=True)
+st.image("Images/5logo.png", width="content")
+
 
 # Session state initialization
+# Create session-local agent (one per user/session)
+if "analysis_agent" not in st.session_state:
+    from agents.analysis_agent import Implement
+    st.session_state.analysis_agent = Implement()
+
+
 if "resume_data" not in st.session_state:
     st.session_state.resume_data = {}
 if "job_results" not in st.session_state:
@@ -159,6 +194,32 @@ if "latex_code" not in st.session_state:
     st.session_state.latex_code = None
 if "tab4_state" not in st.session_state:
     st.session_state.tab4_state = "idle"
+if "live_interview" not in st.session_state:
+    st.session_state.live_interview=False
+if "final_report" not in st.session_state:
+    st.session_state.final_report = None
+    # 1. Initialize a loading state if not present
+if "processing_report" not in st.session_state:
+    st.session_state.processing_report = False
+
+# --------------------------------------------------
+
+
+defaults = {
+    "job_id": None,
+    "active_resume_name": None,
+    "preprocess_future": None,
+    "analyze_requested": False,
+    "analysis_running": False,
+    "analysis_result": None,
+    "resume_text": None,
+}
+
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+
+# --------------------------------------------------
 
 
 # Create main navigation tabs
@@ -168,6 +229,7 @@ tabs=st.tabs([
     "🎯 Interview Preparation", 
     "💼 Saved Jobs"
 ])
+
 
 # Make sure the correct tab is active if coming from another section
 if hasattr(st.session_state, 'active_tab'):
@@ -200,6 +262,32 @@ with tabs[0]:
         #Resume file uploader
         resume_file=st.file_uploader("Upload your Resume",type=["pdf","txt","docx"],key="resume_uploader")
 
+        # --------------------------------------------------
+        # BACKGROUND PREPROCESSING (ON UPLOAD)
+        # --------------------------------------------------
+        if resume_file and st.session_state.active_resume_name != resume_file.name:
+            new_job_id = str(uuid.uuid4())
+
+            # Reset state for new upload
+            st.session_state.job_id = new_job_id
+            st.session_state.active_resume_name = resume_file.name
+            st.session_state.preprocess_future = None
+            st.session_state.analyze_requested = False
+            st.session_state.analysis_running = False
+            st.session_state.analysis_result = None
+            st.session_state.resume_text = None
+
+            resume_analyser = st.session_state.analysis_agent
+
+            # Start background preprocessing
+            st.session_state.preprocess_future = executor.submit(
+                resume_analyser.preprocess_resume,
+                resume_file,
+                new_job_id,
+            )
+
+            st.warning(f"Resume uploaded:✅ Please refresh the page first to upload new Resume")
+
         ######################################################################################################################################
         st.markdown("---")
         new_col1,new_col2=st.columns([2,1])
@@ -223,21 +311,57 @@ with tabs[0]:
         
 
         ######################################################################################################################################
-        if st.button("🔍 Analyze Resume",width="stretch"):
+        # --------------------------------------------------
+        # ANALYZE BUTTON (ONE REQUEST ONLY)
+        # --------------------------------------------------
+        if st.button("🔍 Analyze Resume",width="stretch",disabled=st.session_state.analyze_requested):
+            if st.session_state.preprocess_future is None:
+                st.warning("Please upload a resume first.")
+            else:
+                st.session_state.analyze_requested = True
+                # st.info("Analyze request registered. Waiting for processing if needed...")
             # process uploaded resume
-            if resume_file is not None:
+            # if resume_file is not None:
+        # --------------------------------------------------
+        # ORCHESTRATION LOGIC
+        # --------------------------------------------------
+        if st.session_state.analyze_requested and st.session_state.analysis_result is None:
+
+            # Wait until preprocessing finishes
+            if not st.session_state.preprocess_future.done():
+                with st.spinner("Please wait processing will take some time..."):
+                    time.sleep(20)
+                st.rerun()
+
+            # Preprocessing finished
+            finished_job_id = st.session_state.preprocess_future.result()
+
+            # 🔒 Ignore stale uploads
+            if finished_job_id != st.session_state.job_id:
+                st.warning("Old resume discarded. Please wait for the latest upload.")
+                st.stop()
+
+            # Run analysis ONCE
+            if not st.session_state.analysis_running:
+                st.session_state.analysis_running = True
+                resume_analyser = st.session_state.analysis_agent
+
+
+
+
+
                 with st.spinner("Analyzing your resume..."):
                     try:
                         # Load resume parser
                         # resume_parser=resources["resume_parser"]
                         #     #Save uploaded file to a temporary location
-                        with tempfile.NamedTemporaryFile(delete=False,suffix=f".{resume_file.name.split('.')[-1]}") as temp_file:
-                            temp_file.write(resume_file.getbuffer())
-                            temp_path=temp_file.name
+                        # with tempfile.NamedTemporaryFile(delete=False,suffix=f".{resume_file.name.split('.')[-1]}") as temp_file:
+                        #     temp_file.write(resume_file.getbuffer())
+                        #     temp_path=temp_file.name
 
             ######################################################################################################################################
                         
-                        resume_analyser=resources["analysis_agent"]
+                        # resume_analyser=resources["analysis_agent"]
                         
 
                         if custom_jd:
@@ -251,19 +375,21 @@ with tabs[0]:
                             if extracted_text:
 
                                 #Get AI analysis
-                                resume_agent=resources["resume_agent"]
+                                # resume_agent=resources["resume_agent"]
                                 # resume_analysis=resume_agent.analyze_resume(analysis_result)
 
                                 #Store resume data and analysis in session state
-                                st.session_state.resume_data=analysis_result
+                                # st.session_state.resume_data=analysis_result
+                                st.session_state.analysis_result = analysis_result
+                                st.session_state.resume_text = extracted_text
                                 # st.session_state.resume_data["analysis"]=resume_analysis
-                                st.session_state.resume_data["raw_text"]=extracted_text
+                                # st.session_state.resume_data["raw_text"]=extracted_text
 
-                                # 🔥 RESET IMPROVED RESUME STATE
-                                st.session_state.latex_code = None
-                                st.session_state.tab4_state = "idle"
+                                # # 🔥 RESET IMPROVED RESUME STATE
+                                # st.session_state.latex_code = None
+                                # st.session_state.tab4_state = "idle"
 
-                                st.success("Resume analysis complete! Review the extracted information and analysis below.")
+                                # st.success("Resume analysis complete! Review the extracted information and analysis below.")
                             else:
                                 st.error("Could not extract text from the uploaded file.")
                         except Exception as file_error:
@@ -275,9 +401,27 @@ with tabs[0]:
                         st.info("If the error persists, try uploading a different file format or check if the resume is properly formatted.")
 
         
-            else:
-                st.warning("Please Upload Resume to analyze")           
+            # else:
+            #     st.warning("Please Upload Resume to analyze")           
+        # --------------------------------------------------
+        # FINAL OUTPUT + VERIFICATION
+        # --------------------------------------------------
+        if st.session_state.analysis_result:
+            st.success("✅ Resume analysis complete!")
 
+            # Verification message
+            # st.info(
+            #     f"✅ Verification: Analysis was performed on resume "
+            #     f"**{st.session_state.active_resume_name}**"
+            # )
+
+            # Store for downstream tabs
+            st.session_state.resume_data = st.session_state.analysis_result
+            st.session_state.resume_data["raw_text"] = st.session_state.resume_text
+
+            # # Reset dependent UI state
+            # st.session_state.latex_code = None
+            # st.session_state.tab4_state = "idle"
 
 
 
@@ -338,7 +482,32 @@ with tabs[0]:
                     #     st.info("If the error persists, try uploading a different file format or check if the resume is properly formatted.")
 
         with col2:
-            # Resume tips and advice
+            
+            colo1,colo2=st.columns([2,1])
+            with colo1:
+
+
+                st.image(
+                            "Images/logo_frontened.png",
+                            width="content"
+                        )
+            with colo2:
+            
+                #ATS optimization tips
+                st.markdown(f"""
+                <div style="background-color: {COLORS["nineth"]}; color: white; padding: 15px; border-radius: 8px; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                <h4 style="margin-top: 0;font-size: 19px; color: white;"><strong>✪  ATS Optimization :</strong></h4>
+                <ul style="margin-bottom: 15px;">
+                <li>Use keywords from the job description</li>
+                <li>Avoid tables, headers/footers, and images</li>
+                <li>Use standard section headings</li>
+                <li>Submit in PDF format when possible</li>
+                <li>Keep formatting simple and clean</li>
+                </ul>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            #Resume tips and advice
             st.subheader("🔑 Resume Tips")
             st.markdown(f"""
             <div style="background-color: {COLORS["tenth"]}; color: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
@@ -352,20 +521,6 @@ with tabs[0]:
             </ul>
             </div>
             """,unsafe_allow_html=True)
-
-            #ATS optimization tips
-            st.markdown(f"""
-            <div style="background-color: {COLORS["nineth"]}; color: white; padding: 15px; border-radius: 8px; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-            <h4 style="margin-top: 0; color: white;"><strong>✪  ATS Optimization Tips:</strong></h4>
-            <ul style="margin-bottom: 15px;">
-            <li>Use keywords from the job description</li>
-            <li>Avoid tables, headers/footers, and images</li>
-            <li>Use standard section headings</li>
-            <li>Submit in PDF format when possible</li>
-            <li>Keep formatting simple and clean</li>
-            </ul>
-            </div>
-            """, unsafe_allow_html=True)
 
 
 
@@ -392,13 +547,20 @@ with tabs[0]:
             else:
                 st.info("No detailed analysis available. Please re-upload your resume to generate an analysis.")
 
-        # Tab 4: Improved resume
+        # # Tab 4: Improved resume
         # with resume_tabs[3]:
-        #     if st.session_state.latex_code:
-        #         render_latex_to_pdf(latex_code=st.session_state.latex_code)    
+        #     if not st.session_state.latex_code:
+        #         if st.button("🚀 Improve Resume", key="improve_resume",width="content"):
+        #             resume_analyser=st.session_state.analysis_agent
+        #             latex = resume_analyser.get_improved_resume(
+        #                 st.session_state.analysis_result
+        #             )
+
+        #             st.session_state.latex_code = latex
+        #             render_latex_to_pdf(latex_code=st.session_state.latex_code)    
         #     else:
         #         st.info("Improved resume not available.")
-        #################################################################################################################
+        ################################################################################################################
         with resume_tabs[3]:
 
             tab_container = st.container()
@@ -412,7 +574,7 @@ with tabs[0]:
                     st.image(
                         "Images/cv_template_hero.avif",
                         caption="Create your own Professional Resume",
-                        use_container_width=True
+                        width="content"
                     )
 
                 with right:
@@ -434,7 +596,7 @@ with tabs[0]:
                     with col2:
                         button_container = st.container()
                         with button_container:
-                            improve_clicked = st.button("🚀 Improve Resume", key="improve_resume",use_container_width=True)
+                            improve_clicked = st.button("🚀 Improve Resume", key="improve_resume",width="content")
 
                     # Isolated CSS for ONLY this button
                     st.markdown("""
@@ -496,10 +658,10 @@ with tabs[0]:
                 """, unsafe_allow_html=True)
 
                 # 🔹 LLM CALL (REAL ONE)
-                resume_analyser=resources["analysis_agent"]
+                resume_analyser=st.session_state.analysis_agent
                 try:
                     latex = resume_analyser.get_improved_resume(
-                        st.session_state.resume_data["analysis"]
+                        st.session_state.analysis_result
                     )
 
                     st.session_state.latex_code = latex
@@ -520,12 +682,160 @@ with tabs[0]:
 
                     render_latex_to_pdf(st.session_state.latex_code)
 
+
+
+        # with resume_tabs[3]:
+
+        #     tab_container = st.container()
+
+        #     # ---------- IDLE ----------
+        #     if st.session_state.tab4_state == "idle":
+
+        #         left, right = tab_container.columns([1, 2])
+
+        #         with left:
+        #             st.image(
+        #                 "Images/cv_template_hero.avif",
+        #                 caption="Create your own Professional Resume",
+        #                 width="content"
+        #             )
+
+        #         with right:
+        #             st.markdown("<div style='padding-top:120px; text-align:center'>", unsafe_allow_html=True)
+        #             st.markdown(
+        #                 """
+        #                 <div style="text-align:center">
+        #                     <div style="font-size:40px; font-weight:bold; color:#cdcdcd; margin-bottom:10px;">Ready to improve your resume?</div>
+        #                     <div style="font-size:20px; color:#555;">Click the button below to generate a clean, ATS-friendly Resume.</div>
+        #                 </div>
+        #                 """,
+        #                 unsafe_allow_html=True
+        #             )
+
+        #             st.markdown("<div style='margin-top:40px'></div>", unsafe_allow_html=True)
+
+        #             # Centered button in middle column
+        #             col1, col2, col3 = st.columns([1, 2, 1])
+        #             with col2:
+        #                 # ⚠️ Remove width="content" and scope CSS properly
+        #                 st.markdown("""
+        #                 <style>
+        #                 .improve-btn button {
+        #                     width: 100% !important;
+        #                     padding: 25px 0 !important;
+        #                     font-size: 24px !important;
+        #                     border-radius: 12px !important;
+        #                     background-color: #4CAF50 !important;
+        #                     color: white !important;
+        #                 }
+        #                 .improve-btn button:hover {
+        #                     background-color: #45a049 !important;
+        #                 }
+        #                 </style>
+        #                 """, unsafe_allow_html=True)
+
+        #                 with st.container():
+        #                     improve_clicked = st.button("🚀 Improve Resume", key="improve_resume")
+
+        #             # ---------- PRECHECKS ----------
+        #             if improve_clicked:
+
+        #                 # If preprocessing not done, show warning and stay idle
+        #                 if st.session_state.preprocess_future is None or not st.session_state.preprocess_future.done():
+        #                     st.warning("⚠️ Resume preprocessing is still running. Please wait a moment and click again.")
+        #                     st.session_state.tab4_state = "idle"
+
+        #                 # If analysis not ready, show warning
+        #                 elif st.session_state.analysis_result is None:
+        #                     st.warning("⚠️ Resume analysis not ready yet. Please complete resume analysis first.")
+        #                     st.session_state.tab4_state = "idle"
+
+        #                 # If everything is ready, proceed
+        #                 else:
+        #                     st.session_state.tab4_state = "generating"
+        #                     st.rerun()
+
+        #     # ---------- GENERATING ----------
+        #     elif st.session_state.tab4_state == "generating":
+
+        #         tab_container.markdown("""
+        #         <style>
+        #         .spinner-title {
+        #             font-size: 28px;
+        #             font-weight: bold;
+        #             color: #333 !important;
+        #             background: none !important;
+        #             padding: 0 !important;
+        #             margin: 20px 0 10px 0 !important;
+        #             box-shadow: none !important;
+        #         }
+        #         .spinner-text {
+        #             font-size: 18px;
+        #             color: #555 !important;
+        #         }
+        #         .loader {
+        #             border: 10px solid #f3f3f3;
+        #             border-top: 10px solid #4CAF50;
+        #             border-radius: 50%;
+        #             width: 80px;
+        #             height: 80px;
+        #             animation: spin 1s linear infinite;
+        #             margin: auto;
+        #         }
+        #         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #         </style>
+
+        #         <div style="text-align:center; padding-top:120px">
+        #             <div class="loader"></div>
+        #             <div class="spinner-title">✨ Improving your resume</div>
+        #             <div class="spinner-text">Please wait while we analyze and format your resume</div>
+        #         </div>
+        #         """, unsafe_allow_html=True)
+
+        #         # ⚠️ Make sure analysis is available
+        #         if not st.session_state.analysis_result:
+        #             st.error("Analysis missing. Please run resume analysis first.")
+        #             st.session_state.tab4_state = "idle"
+        #             st.rerun()
+
+        #         # 🔹 LLM CALL (REAL ONE)
+        #         resume_analyser = st.session_state.analysis_agent
+        #         try:
+        #             latex = resume_analyser.get_improved_resume(
+        #                 st.session_state.analysis_result  # use correct object
+        #             )
+
+        #             st.session_state.latex_code = latex
+        #             st.session_state.tab4_state = "done"
+
+        #         except Exception as e:
+        #             st.error(f"Error generating resume: {e}")
+        #             st.session_state.tab4_state = "idle"
+
+        #         st.rerun()
+
+        #     # ---------- DONE ----------
+        #     elif st.session_state.tab4_state == "done":
+
+        #         with tab_container:
+
+        #             st.success("✅ Improved resume generated")
+
+        #             render_latex_to_pdf(st.session_state.latex_code)
+
+        #             # Optional: generate again
+        #             if st.button("🔁 Generate Again"):
+        #                 st.session_state.tab4_state = "idle"
+        #                 st.session_state.latex_code = None
+        #                 st.rerun()
+
+
     
 
 
         # Add a section to explain resume improvement suggestions
             ########################################################################################################################################################################
-        resume_analyser=resources["analysis_agent"]
+        resume_analyser=st.session_state.analysis_agent
 
         st.markdown("---")
         resume_qa_section(ask_question_func=lambda q: resume_analyser.ask_question(q))
@@ -573,273 +883,289 @@ with tabs[1]:
     ]
     
     locations = [
-        "Remote",
+        "Bangalore, India", "Hyderabad, India", "Mumbai, India", "Delhi, India",
+        "Pune, India", "Chennai, India","India", "London, UK", "Berlin, Germany", "Toronto, Canada",
         "New York, NY", "San Francisco, CA", "Seattle, WA", "Austin, TX",
         "Boston, MA", "Chicago, IL", "Los Angeles, CA", "Atlanta, GA", "Denver, CO",
-        "Bangalore, India", "Hyderabad, India", "Mumbai, India", "Delhi, India",
-        "Pune, India", "Chennai, India","India", "London, UK", "Berlin, Germany", "Toronto, Canada"
     ]
 
     # Create search tabs
-    search_tabs=st.tabs(["📄 Resume-Based Search", "🔍 Custom Search"])
+    # search_tabs=st.tabs(["📄 Resume-Based Search", "🔍 Custom Search"])
 
-    # Resume-based Search tab
-    with search_tabs[0]:
-        if st.session_state.resume_data:
-            st.subheader("Find Jobs Matching Your Resume")
-            # st.markdown(f"""
-            # <div style="background-color: {COLORS["panel_bg"]};color:{COLORS["text_light"]}; padding: 5px; border-radius: 8px; margin-bottom: 8px;">
-            # <p style="font-weight: 500; margin-bottom: 10px;">This will extract keywords from your resume and search for relevant jobs automatically.</p>
-            # </div>
-            # """, unsafe_allow_html=True)
-            st.markdown("""<div style="color:white; font-size:1rem;margin-bottom: 15px;"><p style="margin-bottom: 10px;">This will extract keywords from your resume and search for relevant jobs automatically.</p></div>""",unsafe_allow_html=True)
+    # # Resume-based Search tab
+    # with search_tabs[0]:
+    #     if st.session_state.resume_data:
+    #         st.subheader("Find Jobs Matching Your Resume")
+    #         # st.markdown(f"""
+    #         # <div style="background-color: {COLORS["panel_bg"]};color:{COLORS["text_light"]}; padding: 5px; border-radius: 8px; margin-bottom: 8px;">
+    #         # <p style="font-weight: 500; margin-bottom: 10px;">This will extract keywords from your resume and search for relevant jobs automatically.</p>
+    #         # </div>
+    #         # """, unsafe_allow_html=True)
+    #         st.markdown("""<div style="color:white; font-size:1rem;margin-bottom: 15px;"><p style="margin-bottom: 10px;">This will extract keywords from your resume and search for relevant jobs automatically.</p></div>""",unsafe_allow_html=True)
 
-            # Extract skills preview from resume
-            skills_preview=", ".join(st.session_state.resume_data.get("skills",[])[:5])
-            if skills_preview:
-                st.markdown(f"""
-                <div style="background-color: {COLORS["secondary"]}; color: white; 
-                padding: 10px; border-radius: 8px; margin-bottom: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <p style="margin: 0; font-weight: 600; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
-                <span style="font-weight: bold;">Top Skills:</span> {skills_preview}</p>
-                </div>
-                """, unsafe_allow_html=True)
+    #         # Extract skills preview from resume
+    #         skills_preview=", ".join(st.session_state.resume_data.get("skills",[])[:5])
+    #         if skills_preview:
+    #             st.markdown(f"""
+    #             <div style="background-color: {COLORS["secondary"]}; color: white; 
+    #             padding: 10px; border-radius: 8px; margin-bottom: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    #             <p style="margin: 0; font-weight: 600; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
+    #             <span style="font-weight: bold;">Top Skills:</span> {skills_preview}</p>
+    #             </div>
+    #             """, unsafe_allow_html=True)
 
-            # Create two columns for location and search button
-            col1,col2=st.columns([3,1])
+    #         # Create two columns for location and search button
+    #         col1,col2=st.columns([3,1])
 
-            with col1:
-                default_location=st.selectbox(
-                    "Location:",
-                    locations,
-                    index=0,
-                    key="resume_search_location"
-                )
-            with col2:
-                resume_search_button=st.button(
-                    "Search Jobs",
-                    key="resume_based_search"
-                )
+    #         with col1:
+    #             default_location=st.selectbox(
+    #                 "Location:",
+    #                 locations,
+    #                 index=0,
+    #                 key="resume_search_location"
+    #             )
+    #         with col2:
+    #             resume_search_button=st.button(
+    #                 "Search Jobs",
+    #                 key="resume_based_search"
+    #             )
 
-            if resume_search_button:
-                with st.spinner("Extracting key skills and experience from your resume..."):
-                    try:
-                        # Use the keywords extractor
-                        keyword_extractor=resources["keyword_extractor"]
-                        resume_structured_text = f"""
-                                    Skills:
-                                    {', '.join(st.session_state.resume_data.get("skills",[])[:5])}
+    #         if resume_search_button:
+    #             with st.spinner("Extracting key skills and experience from your resume..."):
+    #                 try:
+    #                     # Use the keywords extractor
+    #                     keyword_extractor=resources["keyword_extractor"]
+    #                     resume_structured_text = f"""
+    #                                 Skills:
+    #                                 {', '.join(st.session_state.resume_data.get("skills",[])[:5])}
 
-                                    Education:
-                                    {'\n'.join(st.session_state.resume_data.get("education",[]))}
+    #                                 Education:
+    #                                 {'\n'.join(st.session_state.resume_data.get("education",[]))}
 
-                                    Experience:
-                                    {'\n'.join(st.session_state.resume_data.get("experience",[]))}
+    #                                 Experience:
+    #                                 {'\n'.join(st.session_state.resume_data.get("experience",[]))}
 
-                                    consider more info from this context only
-                                    context:{st.session_state.resume_data.get("raw_text","")}
-                                    """
+    #                                 consider more info from this context only
+    #                                 context:{st.session_state.resume_data.get("raw_text","")}
+    #                                 """
 
-                        search_keywords=keyword_extractor.extract_keywords(resume_structured_text)
+    #                     search_keywords=keyword_extractor.extract_keywords(resume_structured_text)
 
-                        # Get potential job title
-                        job_title=keyword_extractor.extract_job_title(resume_structured_text)
+    #                     # Get potential job title
+    #                     job_title=keyword_extractor.extract_job_title(resume_structured_text)
 
-                        # Join with spaces
-                        resume_based_query=" ".join(search_keywords)
+    #                     # Join with spaces
+    #                     resume_based_query=" ".join(search_keywords)
 
-                        # Display the extracted keywords
-                        st.subheader("Extracted Search Terms")
+    #                     # Display the extracted keywords
+    #                     st.subheader("Extracted Search Terms")
 
-                        # Display with improved contrast
-                        st.markdown(f"""
-                        <div style="background-color: {COLORS["fifth"]}; color: white; 
-                        padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                            <p style="margin-bottom: 8px; font-weight: bold; font-size: 1.1rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
-                            <span style="font-weight: bold;">Job Title:</span> {job_title.title()}</p>
-                            <p style="margin-bottom: 8px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
-                            <span style="font-weight: bold;">Keywords:</span> {resume_based_query}</p>
-                            <p style="margin-bottom: 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
-                            <span style="font-weight: bold;">Location:</span> {default_location}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+    #                     # Display with improved contrast
+    #                     st.markdown(f"""
+    #                     <div style="background-color: {COLORS["fifth"]}; color: white; 
+    #                     padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    #                         <p style="margin-bottom: 8px; font-weight: bold; font-size: 1.1rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
+    #                         <span style="font-weight: bold;">Job Title:</span> {job_title.title()}</p>
+    #                         <p style="margin-bottom: 8px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
+    #                         <span style="font-weight: bold;">Keywords:</span> {resume_based_query}</p>
+    #                         <p style="margin-bottom: 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
+    #                         <span style="font-weight: bold;">Location:</span> {default_location}</p>
+    #                     </div>
+    #                     """, unsafe_allow_html=True)
 
-                        # Allow user to modify the search terms
-                        with st.expander("Modify Search Terms",expanded=False):
-                            modified_query=st.text_input("Edit Keywords:",value=resume_based_query)
-                            modified_location=st.text_input("Edit Location:",value=default_location)
-                            if st.button("Update Search Terms"):
-                                resume_based_query=modified_query
-                                default_location=modified_location
-                                st.success("Search terms updated!")
+    #                     # Allow user to modify the search terms
+    #                     with st.expander("Modify Search Terms",expanded=False):
+    #                         modified_query=st.text_input("Edit Keywords:",value=resume_based_query)
+    #                         modified_location=st.text_input("Edit Location:",value=default_location)
+    #                         if st.button("Update Search Terms"):
+    #                             resume_based_query=modified_query
+    #                             default_location=modified_location
+    #                             st.success("Search terms updated!")
 
-                        # Search for jobs
-                        with st.spinner("Searching for jobs matching your resume profile..."):
-                            serp_api_searcher=resources["serp_api_searcher"]
-                            resume_based_jobs=[]
+    #                     # Search for jobs
+    #                     with st.spinner("Searching for jobs matching your resume profile..."):
+    #                         serp_api_searcher=resources["serp_api_searcher"]
+    #                         resume_based_jobs=[]
 
-                            #Search on all platform
-                            for platform in JOB_PLATFORMS:
-                                try:
-                                    platform_jobs=serp_api_searcher.search_jobs(
-                                        resume_based_query,
-                                        default_location,
-                                        platform=platform,
-                                        count=5
-                                    )
-                                    resume_based_jobs.extend(platform_jobs)
-                                except Exception as e:
-                                    st.error(f"Error searching jobs on {platform}: {str(e)}")
-                            #Update job results
-                            st.session_state.job_results=resume_based_jobs
-                            st.success(f"Found {len(resume_based_jobs)} jobs matching your resume profile!")
-                            st.rerun() # refresh to show results
-                    except Exception as e:
-                        st.error(f"Error processing resume data: {str(e)}")
-        else:
-            st.warning("Please upload your resume in the Resume Analysis tab to enable resume-based job search.")
+    #                         #Search on all platform
+    #                         for platform in JOB_PLATFORMS:
+    #                             try:
+    #                                 platform_jobs=serp_api_searcher.search_jobs(
+    #                                     resume_based_query,
+    #                                     default_location,
+    #                                     platform=platform,
+    #                                     count=5
+    #                                 )
+    #                                 resume_based_jobs.extend(platform_jobs)
+    #                             except Exception as e:
+    #                                 st.error(f"Error searching jobs on {platform}: {str(e)}")
+    #                         #Update job results
+    #                         st.session_state.job_results=resume_based_jobs
+    #                         st.success(f"Found {len(resume_based_jobs)} jobs matching your resume profile!")
+    #                         st.rerun() # refresh to show results
+    #                 except Exception as e:
+    #                     st.error(f"Error processing resume data: {str(e)}")
+    #     else:
+    #         st.warning("Please upload your resume in the Resume Analysis tab to enable resume-based job search.")
             
-            st.markdown(f"""
-            <div style="background-color: {COLORS["panel_bg"]}; padding: 15px; border-radius: 8px;">
-            <ol style="margin-left: 15px; margin-bottom: 0;">
-            <li>Go to the Resume Analysis tab</li>
-            <li>Upload your resume (PDF, DOCX, or TXT)</li>
-            <li>Return to this tab to search for jobs based on your resume</li>
-            </ol>
-            </div>
-            """, unsafe_allow_html=True)
+    #         st.markdown(f"""
+    #         <div style="background-color: {COLORS["panel_bg"]}; padding: 15px; border-radius: 8px;">
+    #         <ol style="margin-left: 15px; margin-bottom: 0;">
+    #         <li>Go to the Resume Analysis tab</li>
+    #         <li>Upload your resume (PDF, DOCX, or TXT)</li>
+    #         <li>Return to this tab to search for jobs based on your resume</li>
+    #         </ol>
+    #         </div>
+    #         """, unsafe_allow_html=True)
 
 
     # custom search tab
-    with search_tabs[1]:
+    # with search_tabs[1]:
         #job search form
-        with st.form("job_search_form"):
-            st.subheader("Search Criteria")
+    with st.form("job_search_form"):
+        st.subheader("Search Criteria")
 
-            # Create a 2-column layout for job title and location
-            col1,col2=st.columns(2)
-            
-            with col1:
-                keywords=st.selectbox("Job Title:", common_job_titles, key="job_titles")
+        # Create a 2-column layout for job title and location
+        col1,col2=st.columns(2)
+        
+        with col1:
+            title = st.session_state.resume_data.get("job_role", "Data Scientist")
 
-            with col2:
-                location=st.selectbox("Location:", locations, key="locations")
+            # Normalize for comparison
+            title_lower = title.lower()
+            titles_lower = [job.lower() for job in common_job_titles]
 
-            # Advanced filters accordion
-            with st.expander("Advance Filters",expanded=False):
-                # Job type selection
-                job_types=["Full-time", "Part-time", "Contract", "Internship"]
-                selected_job_types=st.selectbox("Job Types (optional):",job_types,key="job_types")
+            if title_lower in titles_lower:
+                default_index = titles_lower.index(title_lower)
+            else:
+                default_index = titles_lower.index("data scientist")
 
-                # Experience level
-                experience_level=st.select_slider(
-                    "Years of experience:",
-                    options=["0-1","1-3", "3-5", "5-10", "10+"],
-                    value="1-3",
-                    key="experience_level"
-                )
+            keywords = st.selectbox(
+                "Job Title:",
+                common_job_titles,
+                index=default_index,
+                key="job_titles"
+            )
 
-                # Recency filter
-                recency=st.select_slider(
-                    "Show jobs posted within:",
-                    options=["1 day", "3 days", "1 week", "2 weeks", "1 month", "Any time"],
-                    value="1 week",
-                    key="recency"
-                )
 
-                # Platform selection
-                selected_platforms=st.multiselect(
-                    "Job Platforms:",
-                    options=JOB_PLATFORMS,
-                    default=["LinkedIn"],
-                    key="platforms"
-                )
+        with col2:
+            location=st.selectbox("Location:", locations, key="locations")
 
-                # Number of results
-                job_count=st.slider("Jobs per platform:",3,20,5,key="job_count")
+        # Advanced filters accordion
+        with st.expander("Advance Filters",expanded=False):
+            # Job type selection
+            job_types=["Full-time", "Part-time", "Contract", "Internship"]
+            selected_job_types=st.selectbox("Job Types (optional):",job_types,key="job_types")
 
-                # Use Serapi option
-                use_serp_api=st.checkbox("Use SerpAPI for real job listings",value=False,key="use_serp_api")
+            # Experience level
+            experience_level=st.select_slider(
+                "Years of experience:",
+                options=["0-1","1-3", "3-5", "5-10", "10+"],
+                value="1-3",
+                key="experience_level"
+            )
 
-            submit_search=st.form_submit_button("Search Jobs")
+            # Recency filter
+            recency=st.select_slider(
+                "Show jobs posted within:",
+                options=["1 day", "3 days", "1 week", "2 weeks", "1 month", "Any time"],
+                value="1 week",
+                key="recency"
+            )
 
-        # Execute job search
-        if submit_search:
-            # Build the search query including job types and experience
-            search_query=keywords
+            # Platform selection
+            selected_platforms=st.multiselect(
+                "Job Platforms:",
+                options=JOB_PLATFORMS,
+                default=["LinkedIn"],
+                key="platforms"
+            )
 
-            # Add job types to query if selected
-            if selected_job_types:
-                search_query+=f" {selected_job_types}"
+            # Number of results
+            job_count=st.slider("Jobs per platform:",1,10,5,key="job_count")
 
-            # Add experience level to wuery if needed
-            if experience_level: # if not default
-                search_query+=f" experience of {experience_level} years"
+            # Use Serapi option
+            use_serp_api=st.checkbox("Use SerpAPI for more jobs",value=False,key="use_serp_api")
 
-            # Convert recency to day for API
-            recency_days={
-                "1 day": 1, "3 days": 3, "1 week": 7,
-                "2 weeks": 14, "1 month": 30, "Any time": 365
-            }
-            days_ago=recency_days.get(recency,7)
+        submit_search=st.form_submit_button("Search Jobs")
 
-            if not st.session_state.resume_data:
-                st.warning("Please upload and analyze your resume first for better job matching.")
+    # Execute job search
+    if submit_search:
+        # Build the search query including job types and experience
+        search_query=keywords
 
-            search_message=f"Searching for {search_query} jobs in {location}"
-            search_message+=f" posted within the last {recency}"
-            if selected_job_types:
-                search_message+=f" ({selected_job_types})"
-            
-            with st.spinner(search_message):
-                jobs=[]
-                if use_serp_api:
-                    # Use serpapi to get real job listings
-                    serp_api_searcher=resources["serp_api_searcher"]
-                    for platform in selected_platforms:
-                        try:
-                            platform_jobs=serp_api_searcher.search_jobs(
-                                search_query,
-                                location,
-                                platform=platform,
-                                count=job_count,
-                                days_ago=days_ago
-                            )
-                            jobs.extend(platform_jobs)
-                        except Exception as e:
-                            st.error(f"Error searching jobs on {platform}: {str(e)}")
+        # Add job types to query if selected
+        if selected_job_types:
+            search_query+=f" {selected_job_types}"
 
-                    if not jobs:
-                        st.warning("No jobs found via SerpAPI. Falling back to standard search.")
-                        job_search_agent=resources["job_search_agent"]
-                        try:
-                            jobs=job_search_agent.search_jobs(
-                                st.session_state.resume_data,
-                                search_query,
-                                location,
-                                platforms=selected_platforms,
-                                count=job_count
-                            )
-                        except Exception as e:
-                            st.error(f"Error in job search: {str(e)}")
-                else:
-                    # Use standard job search
+        # Add experience level to wuery if needed
+        if experience_level: # if not default
+            search_query+=f" experience of {experience_level} years"
+
+        # Convert recency to day for API
+        recency_days={
+            "1 day": 1, "3 days": 3, "1 week": 7,
+            "2 weeks": 14, "1 month": 30, "Any time": 365
+        }
+        days_ago=recency_days.get(recency,7)
+
+        if not st.session_state.resume_data:
+            st.warning("Please upload and analyze your resume first for better job matching.")
+
+        search_message=f"Searching for {search_query} jobs in {location}"
+        search_message+=f" posted within the last {recency}"
+        if selected_job_types:
+            search_message+=f" ({selected_job_types})"
+        
+        with st.spinner(search_message):
+            jobs=[]
+            if use_serp_api:
+                # Use serpapi to get real job listings
+                serp_api_searcher=resources["serp_api_searcher"]
+                for platform in selected_platforms:
+                    try:
+                        platform_jobs=serp_api_searcher.search_jobs(
+                            search_query,
+                            location,
+                            platform=platform,
+                            count=job_count,
+                            days_ago=days_ago
+                        )
+                        jobs.extend(platform_jobs)
+                    except Exception as e:
+                        st.error(f"Error searching jobs on {platform}: {str(e)}")
+
+                if not jobs:
+                    st.warning("No jobs found via SerpAPI. Falling back to standard search.")
                     job_search_agent=resources["job_search_agent"]
                     try:
                         jobs=job_search_agent.search_jobs(
                             st.session_state.resume_data,
                             search_query,
-                            search_term=keywords,
-                            location=location,
+                            location,
                             platforms=selected_platforms,
-                            count=job_count,
-                            days_ago=days_ago,
-                            job_type=selected_job_types
+                            count=job_count
                         )
                     except Exception as e:
                         st.error(f"Error in job search: {str(e)}")
-                
-                st.session_state.job_results=jobs
+            else:
+                # Use standard job search
+                job_search_agent=resources["job_search_agent"]
+                try:
+                    jobs=job_search_agent.search_jobs(
+                        st.session_state.resume_data,
+                        search_query,
+                        search_term=keywords,
+                        location=location,
+                        platforms=selected_platforms,
+                        count=job_count,
+                        days_ago=days_ago,
+                        job_type=selected_job_types
+                    )
+                except Exception as e:
+                    st.error(f"Error in job search: {str(e)}")
+            
+            st.session_state.job_results=jobs
 
     # Display job results (common to both search methods)
     if st.session_state.job_results:
@@ -1012,7 +1338,7 @@ with tabs[1]:
                         with st.expander("Resume Match Analysis",expanded=True):
                             with st.spinner("Analyzing match between your resume and job..."):
                                 # Display skills match
-                                skills=st.session_state.resume_data.get("skills",[])
+                                skills=st.session_state.resume_data.get("resume_skills",[])
                                 job_description=selected_job.get('description','')
 
                                 if skills and job_description:
@@ -1037,33 +1363,33 @@ with tabs[1]:
                                     </div>
                                     """, unsafe_allow_html=True)
 
-                                    # Display key matches
-                                    key_matches=match_analysis.get("key_matches",[])
-                                    if key_matches:
-                                        st.markdown("#### Key Matches")
-                                        matches_html = """<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">"""
+                                    # # Display key matches
+                                    # key_matches=match_analysis.get("key_matches",[])
+                                    # if key_matches:
+                                    #     st.markdown("#### Key Matches")
+                                    #     matches_html = """<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">"""
                                         
-                                        for match in key_matches:
-                                            matches_html += f"""<div style="background-color: {COLORS["success"]}; color: white; 
-                                            padding: 8px 12px; border-radius: 20px; font-weight: 500; margin-bottom: 8px;">
-                                            ✅ {match}</div>"""
+                                    #     for match in key_matches:
+                                    #         matches_html += f"""<div style="background-color: {COLORS["success"]}; color: white; 
+                                    #         padding: 8px 12px; border-radius: 20px; font-weight: 500; margin-bottom: 8px;">
+                                    #         ✅ {match}</div>"""
                                         
-                                        matches_html += "</div>"
-                                        st.markdown(matches_html, unsafe_allow_html=True)
+                                    #     matches_html += "</div>"
+                                    #     st.markdown(matches_html, unsafe_allow_html=True)
                                     
-                                    # Display gaps
-                                    gaps = match_analysis.get("gaps", [])
-                                    if gaps:
-                                        st.markdown("#### Gaps to Address")
-                                        gaps_html = """<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">"""
+                                    # # Display gaps
+                                    # gaps = match_analysis.get("gaps", [])
+                                    # if gaps:
+                                    #     st.markdown("#### Gaps to Address")
+                                    #     gaps_html = """<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">"""
                                         
-                                        for gap in gaps:
-                                            gaps_html += f"""<div style="background-color: {COLORS["error"]}; color: white; 
-                                            padding: 8px 12px; border-radius: 20px; font-weight: 500; margin-bottom: 8px;">
-                                            ⚠️ {gap}</div>"""
+                                    #     for gap in gaps:
+                                    #         gaps_html += f"""<div style="background-color: {COLORS["error"]}; color: white; 
+                                    #         padding: 8px 12px; border-radius: 20px; font-weight: 500; margin-bottom: 8px;">
+                                    #         ⚠️ {gap}</div>"""
                                         
-                                        gaps_html += "</div>"
-                                        st.markdown(gaps_html, unsafe_allow_html=True)
+                                    #     gaps_html += "</div>"
+                                    #     st.markdown(gaps_html, unsafe_allow_html=True)
                                     
                                     # Display recommendations
                                     recommendations = match_analysis.get("recommendations", [])
@@ -1192,153 +1518,298 @@ with tabs[2]:
             # Number of questions
             num_questions = st.slider(
                 "Number of questions:",
-                5, 20, 10,
+                1, 10, 5,
                 key="num_interview_questions"
             )
 
-            # Generate button
-            generate_btn = st.button("Generate Interview Questions", key="generate_interview_btn")
+        def start_interview():
+            st.session_state.live_interview = True
 
         with col2:
-            # Resume analysis tips
-            if st.session_state.resume_data:
-                st.subheader("Your Top Skills")
-
-                # Get skills and experience
-                skills = st.session_state.resume_data.get("skills", [])
+            with st.container(border=True):
+                st.subheader("🎤 Live Interview")
+                st.image("Images/interview.webp", use_container_width=True)
+                is_started = st.checkbox("Start Interview Mode", key="interview_toggle")
+                if is_started:
+                    st.link_button(
+                    "🚀 Generate Interview",
+                    "http://localhost:5173/",
+                    use_container_width=True
+                    )
+                    st.session_state.live_interview=True
                     
-                # Display skills that match the job
-                if skills and selected_job.get("description"):
-                    display_matching_skills(skills, selected_job["description"])
-         
-            else:
-                st.warning("Upload your resume in the Resume Analysis tab for personalized interview tips.")
+        
+                # Generate button
+                # 2. Logic Area
+        # if st.session_state.live_interview and is_started:
             
-            # Interview tips based on job type and selected interview type
-            st.subheader("Quick Tips")
-            
-            # Determine if this is a technical role
-            is_technical = any(tech in selected_job['title'].lower() for tech in [
-                'developer', 'engineer', 'data', 'software', 'programmer',
-                'analyst', 'architect', 'devops', 'security', 'network'
-            ])
+        #     # Disable the button while processing to prevent double-clicks
+        #     report_btn = st.button(
+        #         "Generate report", 
+        #         key="generate_report", 
+        #         disabled=st.session_state.processing_report
+        #     )
 
-            # Display tips based on the selected interview type
-            if interview_type == "Technical Interview":
-                st.markdown(f"""
-                <div style="background-color: {COLORS["primary"]}; color: white; padding: 15px; 
-                border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                <h4 style="margin-top: 0; font-weight: 600; margin-bottom: 10px; color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);">Technical Interview Tips:</h4>
-                <ul style="margin-bottom: 0; padding-left: 20px;">
-                <li>Review fundamental concepts related to your role</li>
-                <li>Research the tech stack mentioned in the job description</li>
-                <li>Be prepared to discuss your previous technical challenges</li>
-                <li>Practice explaining complex technical concepts simply</li>
-                <li>Connect technical answers to business value</li>
-                </ul>
-                </div>
-                """, unsafe_allow_html=True)
-            elif interview_type == "Coding Interview":
-                st.markdown(f"""
-                <div style="background-color: {COLORS["primary"]}; color: white; padding: 15px; 
-                border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                <h4 style="margin-top: 0; font-weight: 600; margin-bottom: 10px; color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);">Coding Interview Tips:</h4>
-                <ul style="margin-bottom: 0; padding-left: 20px;">
-                <li>Review core data structures and algorithms</li>
-                <li>Practice coding on a whiteboard or without IDE assistance</li>
-                <li>Talk through your approach before coding</li>
-                <li>Explain your thought process while solving the problem</li>
-                <li>Test your code with examples and edge cases</li>
-                <li>Consider time and space complexity</li>
-                </ul>
-                </div>
-                """, unsafe_allow_html=True)
-            elif interview_type == "Behavioral Interview":
-                st.markdown(f"""
-                <div style="background-color: {COLORS["primary"]}; color: white; padding: 15px; 
-                border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                <h4 style="margin-top: 0; font-weight: 600; margin-bottom: 10px; color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);">Behavioral Interview Tips:</h4>
-                <ul style="margin-bottom: 0; padding-left: 20px;">
-                <li>Use the STAR method (Situation, Task, Action, Result)</li>
-                <li>Prepare specific examples from your experience</li>
-                <li>Align your answers with the company's values</li>
-                <li>Include quantifiable results whenever possible</li>
-                <li>Be honest and authentic in your responses</li>
-                </ul>
-                </div>
-                """, unsafe_allow_html=True)
-            elif interview_type == "System Design":
-                st.markdown(f"""
-                <div style="background-color: {COLORS["primary"]}; color: white; padding: 15px; 
-                border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                <h4 style="margin-top: 0; font-weight: 600; margin-bottom: 10px; color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);">System Design Tips:</h4>
-                <ul style="margin-bottom: 0; padding-left: 20px;">
-                <li>Clarify requirements and constraints first</li>
-                <li>Draw system diagrams to visualize your solution</li>
-                <li>Start with a high-level design, then dive deeper</li>
-                <li>Consider scalability, reliability, and performance</li>
-                <li>Discuss tradeoffs in your design decisions</li>
-                <li>Know common design patterns and when to apply them</li>
-                </ul>
-                </div>
-                """, unsafe_allow_html=True)
-            else:  # Project Experience
-                st.markdown(f"""
-                <div style="background-color: {COLORS["primary"]}; color: white; padding: 15px; 
-                border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                <h4 style="margin-top: 0; font-weight: 600; margin-bottom: 10px; color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);">Project Experience Tips:</h4>
-                <ul style="margin-bottom: 0; padding-left: 20px;">
-                <li>Highlight your specific contributions to projects</li>
-                <li>Explain the challenges and how you overcame them</li>
-                <li>Discuss both technical and non-technical aspects</li>
-                <li>Share metrics or KPIs that demonstrate success</li>
-                <li>Reflect on lessons learned and growth opportunities</li>
-                </ul>
-                </div>
-                """, unsafe_allow_html=True)
+        #     if report_btn:
+        #         # SNAPSHOT the history immediately
+        #         chat_to_send = list(st.session_state.chat_history) 
+                
+        #         if not chat_to_send:
+        #             st.error("No conversation data found to analyze.")
+        #         else:
+        #             st.session_state.processing_report = True
+        #             with st.spinner("Analyzing your interview..."):
+        #                 try:
+        #                     response = requests.post(
+        #                         "http://localhost:5001/process-chat",
+        #                         json=chat_to_send, # Send the snapshot
+        #                         timeout=120
+        #                     )
+                            
+        #                     if response.status_code == 200:
+        #                         data = response.json()
+        #                         eval_result = data.get("evaluation")
+                                
+        #                         # Only save if it's a real evaluation, not an error dict
+        #                         if isinstance(eval_result, dict) and "overall_score" in eval_result:
+        #                             st.session_state.final_report = eval_result
+        #                             st.success("Report generated!")
+        #                         else:
+        #                             st.error(f"Analysis failed: {eval_result.get('error', 'Unknown error')}")
+        #                     else:
+        #                         st.error(f"Backend Error: {response.status_code}")
+                        
+        #                 except Exception as e:
+        #                     st.error(f"Request failed: {e}")
+        #                 finally:
+        #                     # Unlock the button
+        #                     st.session_state.processing_report = False
+        #                     st.rerun() # Force a rerun to show the report
+
+        #     # --- CHANGE START HERE ---
+        #     # Check if final_report exists AND is not None
+        #     if st.session_state.get("final_report") is not None:
+        #         report = st.session_state.final_report
+                
+        #         # Double check it is a dictionary before using .get()
+        #         if isinstance(report, dict) and report: 
+        #             st.subheader("🎯 Overall Score")
+        #             score = report.get("overall_score", 0)
+                    
+        #             # Ensure score is a number before dividing
+        #             try:
+        #                 st.progress(float(score) / 10)
+        #             except:
+        #                 st.progress(0.0)
+                        
+        #             st.metric("Overall Score", f"{score}/10")
+        #             st.write(report.get("final_summary", "No summary provided."))
+                    
+        #             st.subheader("📌 Recommendation")
+        #             st.success(report.get("recommendation", "N/A"))
+                    
+        #             st.divider()
+        #             st.subheader("📝 Question-wise Evaluation")
+                    
+        #             questions = report.get("questions", [])
+        #             for idx, q in enumerate(questions, 1):
+        #                 with st.expander(f"Question {idx} — Score: {q.get('score', 0)}/10"):
+        #                     st.markdown(f"**Question:** {q.get('question', 'N/A')}")
+        #                     st.markdown(f"**Answer Summary:** {q.get('answer_summary', 'N/A')}")
+        #                     st.markdown(f"**Strengths:** {q.get('strengths', 'N/A')}")
+        #                     st.markdown(f"**Improvements:** {q.get('improvements', 'N/A')}")
+        if st.session_state.live_interview and is_started:
+
+            report_btn = st.button("Generate report", disabled=st.session_state.processing_report)
+
+            if report_btn:
+                st.session_state.processing_report = True
+
+                with st.spinner("Fetching conversation and analyzing..."):
+                    try:
+                        # Step 1: Fetch current messages from Flask
+                        response = requests.get("http://127.0.0.1:5001/get-messages", timeout=60)
+                        if response.status_code != 200:
+                            st.error(f"Backend returned error: {response.status_code}")
+                            st.session_state.processing_report = False
+                            st.stop()
+
+                        messages = response.json()
+                        if not messages:
+                            st.error("No messages returned from backend")
+                            st.session_state.processing_report = False
+                            st.stop()
+
+                        # Step 2: Call evaluation function
+                        evaluation = resume_analyser.feedback_interview(messages)
+
+                        if "error" in evaluation:
+                            st.error(f"Evaluation failed: {evaluation['error']}")
+                            st.session_state.processing_report = False
+                            st.stop()
+
+                        # Step 3: Store report
+                        st.session_state.final_report = evaluation
+                        st.success("Report generated successfully!")
+
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+            # --- Render report ---
+            report = st.session_state.get("final_report")
+            if report and isinstance(report, dict):
+                st.subheader("🎯 Overall Score")
+                score = report.get("overall_score", 0)
+                st.progress(min(float(score)/10, 1.0))
+                st.metric("Overall Score", f"{score}/10")
+
+                st.write(report.get("final_summary", ""))
+
+                st.subheader("📌 Recommendation")
+                st.success(report.get("recommendation", ""))
+
+                st.divider()
+                st.subheader("📝 Question-wise Evaluation")
+                for idx, q in enumerate(report.get("questions", []), 1):
+                    with st.expander(f"Question {idx} — Score: {q.get('score', 0)}/10"):
+                        st.markdown(f"**Question:** {q.get('question', 'N/A')}")
+                        st.markdown(f"**Answer Summary:** {q.get('answer_summary', 'N/A')}")
+                        st.markdown(f"**Strengths:** {q.get('strengths', 'N/A')}")
+                        st.markdown(f"**Improvements:** {q.get('improvements', 'N/A')}")
+
+    # --- CHANGE END HERE ---
+        else:
+            generate_btn = st.button("Generate Interview Questions", key="generate_interview_btn")
+                    
+
+            #     st.warning("Upload your resume in the Resume Analysis tab for personalized interview tips.")
+            
+            # # Interview tips based on job type and selected interview type
+            # st.subheader("Quick Tips")
+            
+            # # Determine if this is a technical role
+            # is_technical = any(tech in selected_job['title'].lower() for tech in [
+            #     'developer', 'engineer', 'data', 'software', 'programmer',
+            #     'analyst', 'architect', 'devops', 'security', 'network'
+            # ])
+
+            # # Display tips based on the selected interview type
+            # if interview_type == "Technical Interview":
+            #     st.markdown(f"""
+            #     <div style="background-color: {COLORS["primary"]}; color: white; padding: 15px; 
+            #     border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            #     <h4 style="margin-top: 0; font-weight: 600; margin-bottom: 10px; color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);">Technical Interview Tips:</h4>
+            #     <ul style="margin-bottom: 0; padding-left: 20px;">
+            #     <li>Review fundamental concepts related to your role</li>
+            #     <li>Research the tech stack mentioned in the job description</li>
+            #     <li>Be prepared to discuss your previous technical challenges</li>
+            #     <li>Practice explaining complex technical concepts simply</li>
+            #     <li>Connect technical answers to business value</li>
+            #     </ul>
+            #     </div>
+            #     """, unsafe_allow_html=True)
+            # elif interview_type == "Coding Interview":
+            #     st.markdown(f"""
+            #     <div style="background-color: {COLORS["primary"]}; color: white; padding: 15px; 
+            #     border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            #     <h4 style="margin-top: 0; font-weight: 600; margin-bottom: 10px; color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);">Coding Interview Tips:</h4>
+            #     <ul style="margin-bottom: 0; padding-left: 20px;">
+            #     <li>Review core data structures and algorithms</li>
+            #     <li>Practice coding on a whiteboard or without IDE assistance</li>
+            #     <li>Talk through your approach before coding</li>
+            #     <li>Explain your thought process while solving the problem</li>
+            #     <li>Test your code with examples and edge cases</li>
+            #     <li>Consider time and space complexity</li>
+            #     </ul>
+            #     </div>
+            #     """, unsafe_allow_html=True)
+            # elif interview_type == "Behavioral Interview":
+            #     st.markdown(f"""
+            #     <div style="background-color: {COLORS["primary"]}; color: white; padding: 15px; 
+            #     border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            #     <h4 style="margin-top: 0; font-weight: 600; margin-bottom: 10px; color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);">Behavioral Interview Tips:</h4>
+            #     <ul style="margin-bottom: 0; padding-left: 20px;">
+            #     <li>Use the STAR method (Situation, Task, Action, Result)</li>
+            #     <li>Prepare specific examples from your experience</li>
+            #     <li>Align your answers with the company's values</li>
+            #     <li>Include quantifiable results whenever possible</li>
+            #     <li>Be honest and authentic in your responses</li>
+            #     </ul>
+            #     </div>
+            #     """, unsafe_allow_html=True)
+            # elif interview_type == "System Design":
+            #     st.markdown(f"""
+            #     <div style="background-color: {COLORS["primary"]}; color: white; padding: 15px; 
+            #     border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            #     <h4 style="margin-top: 0; font-weight: 600; margin-bottom: 10px; color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);">System Design Tips:</h4>
+            #     <ul style="margin-bottom: 0; padding-left: 20px;">
+            #     <li>Clarify requirements and constraints first</li>
+            #     <li>Draw system diagrams to visualize your solution</li>
+            #     <li>Start with a high-level design, then dive deeper</li>
+            #     <li>Consider scalability, reliability, and performance</li>
+            #     <li>Discuss tradeoffs in your design decisions</li>
+            #     <li>Know common design patterns and when to apply them</li>
+            #     </ul>
+            #     </div>
+            #     """, unsafe_allow_html=True)
+            # else:  # Project Experience
+            #     st.markdown(f"""
+            #     <div style="background-color: {COLORS["primary"]}; color: white; padding: 15px; 
+            #     border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            #     <h4 style="margin-top: 0; font-weight: 600; margin-bottom: 10px; color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);">Project Experience Tips:</h4>
+            #     <ul style="margin-bottom: 0; padding-left: 20px;">
+            #     <li>Highlight your specific contributions to projects</li>
+            #     <li>Explain the challenges and how you overcame them</li>
+            #     <li>Discuss both technical and non-technical aspects</li>
+            #     <li>Share metrics or KPIs that demonstrate success</li>
+            #     <li>Reflect on lessons learned and growth opportunities</li>
+            #     </ul>
+            #     </div>
+            #     """, unsafe_allow_html=True)
+        
 
         # Generate interview questions
-        if generate_btn:
-            with st.spinner("Generating interview questions..."):
-                try:
-                    interview_agent=resources["interview_agent"]
+            if generate_btn:
+                with st.spinner("Generating interview questions..."):
+                    try:
+                        interview_agent=resources["interview_agent"]
 
-                    # Get the job description
-                    job_description=selected_job.get('description','')
+                        # Get the job description
+                        job_description=selected_job.get('description','')
 
-                    # Get resume data id available
-                    resume_data=st.session_state.resume_data
+                        # Get resume data id available
+                        resume_data=st.session_state.resume_data
 
-                     # Create a more detailed prompt based on the interview type and focus areas
-                    prompt_additions=f"Interview Type: {interview_type}\nDifficulty Level: {difficulty}\n"
-                    if 'focus_areas' in locals():
-                        prompt_additions+=f"Focus Areas: {', '.join(focus_areas)}\n"
+                        # Create a more detailed prompt based on the interview type and focus areas
+                        prompt_additions=f"Interview Type: {interview_type}\nDifficulty Level: {difficulty}\n"
+                        if 'focus_areas' in locals():
+                            prompt_additions+=f"Focus Areas: {', '.join(focus_areas)}\n"
 
-                    # Create an enhanced job data object with our customizations
-                    enhanced_job_data = selected_job.copy()
-                    enhanced_job_data['interview_customization'] = prompt_additions
+                        # Create an enhanced job data object with our customizations
+                        enhanced_job_data = selected_job.copy()
+                        enhanced_job_data['interview_customization'] = prompt_additions
 
-                    # Generate questions based on job description and resume
-                    questions=interview_agent.generate_interview_questions(
-                        job_data=enhanced_job_data,
-                        resume_data=resume_data,
-                        question_count=num_questions
-                    )
-                    
-                    # Store in session state
-                    st.session_state.interview_questions={
-                        'job': selected_job,
-                        'type': interview_type,
-                        'difficulty': difficulty,
-                        'focus_areas': focus_areas if 'focus_areas' in locals() else [],
-                        'questions': questions
-                    }
+                        # Generate questions based on job description and resume
+                        questions=interview_agent.generate_interview_questions(
+                            job_data=enhanced_job_data,
+                            resume_data=resume_data,
+                            question_count=num_questions
+                        )
+                        
+                        # Store in session state
+                        st.session_state.interview_questions={
+                            'job': selected_job,
+                            'type': interview_type,
+                            'difficulty': difficulty,
+                            'focus_areas': focus_areas if 'focus_areas' in locals() else [],
+                            'questions': questions
+                        }
 
-                    # Rerun to refresh the page
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error generating interview questions: {str(e)}")
-                    st.info("Try with a different interview type or reduce the number of questions.")
+                        # Rerun to refresh the page
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error generating interview questions: {str(e)}")
+                        st.info("Try with a different interview type or reduce the number of questions.")
 
         # Display generated questions with enhanced formatting
         if st.session_state.interview_questions:
@@ -1387,33 +1858,33 @@ with tabs[2]:
                         with st.expander(question_title,expanded=i==1):
                             # Display full question text if it was truncated in the title
                             if len(question.get('question',''))>77 and "..." in question_title:
-                                st.markdown(f"""<div style="background-color: {COLORS["primary"]}; color: white; 
+                                st.markdown(f"""<div style="background-color: {COLORS["question"]}; font-weight: bold;font-size: 18px;color: #070707; 
                                 padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                                 <span style="text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">{question.get('question')}</span>
                                 </div>""", unsafe_allow_html=True)
                             # Display context if available
                             if question.get('context'):
                                 st.markdown("<h4>Question Context</h4>", unsafe_allow_html=True)
-                                st.markdown(f"""<div style="background-color: {COLORS["secondary"]}; color: white; 
+                                st.markdown(f"""<div style="background-color: {COLORS["context"]}; color: #0F2A44; 
                                 padding: 12px; border-radius: 6px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                                 <span style="text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">{question['context']}</span>
                                 </div>""", unsafe_allow_html=True)
                             
-                            # Display suggested approach if available
-                            if question.get('approach') or question.get('suggested_approach'):
-                                approach = question.get('approach', question.get('suggested_approach', ''))
-                                st.markdown("<h4>Suggested Approach</h4>", unsafe_allow_html=True)
-                                st.markdown(f"""<div style="background-color: {COLORS["tertiary"]}; color: white; 
-                                padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                                <span style="text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">{approach}</span>
-                                </div>""", unsafe_allow_html=True)
+                            # # Display suggested approach if available
+                            # if question.get('approach') or question.get('suggested_approach'):
+                            #     approach = question.get('approach', question.get('suggested_approach', ''))
+                            #     st.markdown("<h4>Suggested Approach</h4>", unsafe_allow_html=True)
+                            #     st.markdown(f"""<div style="background-color: {COLORS["tertiary"]}; color: white; 
+                            #     padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            #     <span style="text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">{approach}</span>
+                            #     </div>""", unsafe_allow_html=True)
                             
                             # Display suggested answer if available
                             # Display suggested answer if available
                             if question.get('suggested_answer') or question.get('answer'):
                                 answer = question.get('suggested_answer', question.get('answer', ''))
-                                st.markdown("<h4>Suggested Answer</h4>", unsafe_allow_html=True)
-                                st.markdown(f"""<div style="background-color: {COLORS["primary"]}; color: white; 
+                                st.markdown("<h4>Suggested Approach</h4>", unsafe_allow_html=True)
+                                st.markdown(f"""<div style="background-color: {COLORS["approach"]}; color: #1F5E3B; 
                                 padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                                 <span style="text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">{answer}</span>
                                 </div>""", unsafe_allow_html=True)
@@ -1421,7 +1892,7 @@ with tabs[2]:
                             # Display tips if available
                             if question.get('tips'):
                                 st.markdown("<h4>Interview Tips</h4>", unsafe_allow_html=True)
-                                st.markdown(f"""<div style="background-color: {COLORS["accent1"]}; color: white; 
+                                st.markdown(f"""<div style="background-color: {COLORS["tips"]}; color: #7A4A00; 
                                 padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                                 <span style="text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">{question['tips']}</span>
                                 </div>""", unsafe_allow_html=True)

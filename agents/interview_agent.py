@@ -41,8 +41,8 @@ class InterviewAgent:
 
             # Extract skills from resume if available
             skills=[]
-            if resume_data and "skills" in resume_data:
-                skills=resume_data.get("skills",[])
+            if resume_data and "resume_skills" in resume_data:
+                skills=resume_data.get("resume_skills",[])
 
             # Create a detailed prompt
             prompt=f"""

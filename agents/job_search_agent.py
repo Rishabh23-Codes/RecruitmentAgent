@@ -9,7 +9,7 @@ class JobSearchAgent:
     """Agent for searching and matching jobs."""
     def __init__(self):
         """Initialize the job search agent."""
-        self.api_key=GROQ_API_KEY
+        self.api_key=None
         self.model=LLM_MODEL
         self.job_scraper=JobScrapper()
         self.serp_api_searcher=SerpApiSearcher()
@@ -170,7 +170,7 @@ class JobSearchAgent:
 
     def _generate_basic_match_analysis(self,resume_data,job_data):
         """Generate basic job match analysis when OpenAI is not available."""
-        skills=resume_data.get("skills",[])
+        skills=resume_data.get("resume_skills",[])
         job_description=job_data.get("description","").lower()
 
         # Count matching skills

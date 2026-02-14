@@ -376,7 +376,8 @@ class JobScrapper:
                 verbose=2,
                 country_indeed="India",
                 is_remote=flag,
-                job_type=job_type_arg  
+                job_type=job_type_arg,
+                linkedin_fetch_description=True  
             )
             # if not jobs_df.empty:
             #     return self._format_dataframe(jobs_df, platform)
