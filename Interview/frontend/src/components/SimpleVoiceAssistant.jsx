@@ -149,7 +149,7 @@ const SimpleVoiceAssistant = ({ onDisconnect }) => {
         }
     setTimeout(() => {
         window.close();  // Only works if tab was opened via JS
-    }, 1000); // 5000ms = 5 seconds
+    }, 1000); // 1 seconds
     };
 
 

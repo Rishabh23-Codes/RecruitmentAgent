@@ -30,7 +30,7 @@ class SerpApiSearcher:
             #Prepare query parameters
             query=f"{keywords} jobs in {location}"
             if platform and platform.lower() !="all":
-                query+=f"{platform}"
+                query+=f" {platform}"
             
             params= {
                 "engine": "google_jobs",
@@ -109,8 +109,8 @@ class SerpApiSearcher:
                     job_platform=job.get("via","Unknown")
 
                     # # Filter by platform if specified
-                    # if platform and platform.lower() !="all" and platform.lower() not in job_platform.lower():
-                    #     continue
+                    if platform and platform.lower() !="all" and platform.lower() not in job_platform.lower():
+                        continue
 
 
                     # Create job entry

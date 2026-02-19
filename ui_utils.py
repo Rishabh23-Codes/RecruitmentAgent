@@ -8,99 +8,130 @@ import base64
 
 # Role requirement dictionary
 role_requirements = {
+
     "AI Engineer": [
-        "Python", "LangChain", "OpenAI API", "Hugging Face Transformers",
-        "RAG (Retrieval-Augmented Generation)", "Vector Databases (FAISS, Pinecone, Chroma, Weaviate)",
-        "Prompt Engineering", "Agent Development",
-        "LLM Integration with APIs", "FastAPI / Flask for LLM Endpoints",
-        "Docker", "Kubernetes", "Cloud Deployment (AWS/GCP/Azure)", "Async Programming",
-        "Data Preprocessing for LLMs", "Evaluation & Testing of LLM outputs"
+        "Python", "Transformers", "LLM APIs", "Prompt Engineering",
+        "Retrieval-Augmented Generation", "Embeddings", "Semantic Search",
+        "Vector Databases", "LangChain", "LlamaIndex", "LangGraph",
+        "AI Agents", "Multi-Agent Systems", "Tool Calling",
+        "LLM Fine-Tuning", "LoRA", "FastAPI",
+        "Docker", "Model Evaluation", "Monitoring"
     ],
 
     "ML Engineer": [
         "Python", "PyTorch", "TensorFlow", "Scikit-Learn",
-        "Supervised/Unsupervised Learning", "Deep Learning", "CNN/RNN/Transformers",
-        "Computer Vision", "NLP (classical)", "Reinforcement Learning",
-        "Model Training & Evaluation", "Feature Engineering", "Hyperparameter Tuning",
-        "Data Augmentation", "AutoML", "Experiment Tracking (MLflow, W&B)",
-        "GPU Programming", "Big Data Tools (Spark/Hadoop)"
+        "Supervised Learning", "Unsupervised Learning", "Deep Learning",
+        "Transformers", "Feature Engineering",
+        "Model Training", "Model Evaluation", "Hyperparameter Tuning",
+        "Experiment Tracking", "Model Optimization",
+        "Model Serving", "Docker", "Linux", "Git"
     ],
 
     "Agent Developer": [
-        "Python", "LangChain", "RAG", "OpenAI API / LLM APIs",
-        "Multi-Agent Systems", "Agent-Oriented Programming", "Vector Databases",
-        "FastAPI / Flask Endpoints", "Docker", "Kubernetes", "Cloud Deployment",
-        "Prompt Engineering", "Task Planning / Orchestration", "Event-Driven Architecture"
+        "Python", "AI Agents", "Multi-Agent Systems",
+        "LangGraph", "LangChain", "LlamaIndex",
+        "Retrieval-Augmented Generation", "Tool Calling",
+        "Task Planning", "Memory Systems",
+        "Vector Databases", "Prompt Engineering",
+        "FastAPI", "Async Programming", "Docker"
     ],
 
     "Data Engineer": [
-        "Python", "SQL", "ETL Pipelines", "Apache Spark", "Hadoop", "Kafka", "Airflow",
-        "BigQuery", "Redshift", "Snowflake", "Azure Data Factory", "AWS Glue", "DBT",
-        "Data Modeling", "Data Warehousing", "Streaming & Batch Processing",
-        "NoSQL Databases", "Monitoring & Logging", "CI/CD for Data Pipelines"
+        "Python", "SQL", "Advanced SQL",
+        "Data Modeling", "ETL", "ELT",
+        "Apache Spark", "Kafka", "Airflow", "dbt",
+        "Data Warehousing", "Batch Processing",
+        "Streaming Processing", "Data Quality",
+        "Linux", "Git"
     ],
 
     "Data Scientist": [
-        "Python", "R", "Machine Learning", "Statistics", "Probability",
-        "Pandas", "NumPy", "Scikit-Learn", "TensorFlow", "PyTorch",
-        "Data Visualization (Matplotlib, Seaborn, Plotly)", "SQL",
-        "Feature Engineering", "Model Evaluation", "Big Data Tools (Spark/Hadoop)",
-        "NLP (classical)", "Time Series Analysis", "AutoML"
+        "Python", "R", "Statistics", "Probability",
+        "Hypothesis Testing", "Pandas", "NumPy",
+        "Scikit-Learn", "Feature Engineering",
+        "Model Evaluation", "Data Visualization",
+        "SQL", "A/B Testing", "Time Series Analysis",
+        "Machine Learning"
     ],
 
     "Frontend Engineer": [
-        "React", "Vue", "Angular", "Svelte", "Next.js", "Nuxt.js", "HTML5", "CSS3",
-        "JavaScript", "TypeScript", "Tailwind CSS", "Bootstrap", "GraphQL", "Redux", "Recoil",
-        "WebAssembly", "Three.js", "Performance Optimization", "Accessibility (a11y)",
-        "Responsive Design", "Testing (Jest, Cypress)"
+        "JavaScript", "TypeScript",
+        "React", "Next.js", "Vue", "Angular",
+        "HTML5", "CSS3", "State Management",
+        "API Integration", "Responsive Design",
+        "Performance Optimization", "Accessibility",
+        "Jest", "Cypress", "Git"
     ],
 
     "Backend Engineer": [
-        "Python", "Java", "Node.js", "Go", "Rust", "REST APIs", "GraphQL", "gRPC",
-        "Microservices Architecture", "Spring Boot", "Flask", "FastAPI", "Django",
-        "SQL & NoSQL Databases", "Redis", "RabbitMQ", "Kafka", "CI/CD Pipelines", "Docker", "Kubernetes",
-        "AWS/GCP/Azure Services", "Authentication & Authorization", "Logging & Monitoring"
+        "Python", "FastAPI", "Django",
+        "Node.js", "Express",
+        "Java", "Spring Boot",
+        "REST APIs", "GraphQL",
+        "System Design", "SQL", "PostgreSQL",
+        "MongoDB", "Redis", "Kafka",
+        "Authentication", "JWT", "OAuth2",
+        "Docker", "CI/CD",
+        "Logging", "Monitoring"
     ],
 
     "Full Stack Engineer": [
-        "JavaScript", "TypeScript", "React", "Vue", "Next.js", "Node.js", "Express",
-        "Python", "Django", "Flask", "FastAPI",
-        "SQL & NoSQL Databases", "GraphQL", "REST APIs",
-        "HTML5", "CSS3", "Tailwind CSS", "Bootstrap",
-        "Docker", "CI/CD", "Microservices", "Authentication & Authorization",
-        "Cloud Deployment (AWS/GCP/Azure)", "Unit & Integration Testing"
+        "JavaScript", "TypeScript",
+        "React", "Next.js",
+        "Node.js", "Express",
+        "Python", "FastAPI", "Django",
+        "REST APIs", "GraphQL",
+        "SQL", "PostgreSQL", "MongoDB",
+        "Authentication", "JWT",
+        "Responsive UI Development",
+        "Docker", "CI/CD", "System Design"
     ],
 
     "DevOps Engineer": [
-        "Linux Administration", "Docker", "Kubernetes", "Helm", "Terraform", "Ansible",
-        "CI/CD Pipelines", "GitHub Actions", "GitLab CI", "Jenkins", "AWS/GCP/Azure",
-        "Monitoring & Logging", "Prometheus", "Grafana", "ELK Stack", "SRE Principles",
-        "Networking", "Security & Compliance", "Serverless Deployment", "Infrastructure as Code"
+        "Linux", "Bash", "Docker",
+        "Kubernetes", "Terraform", "Ansible",
+        "CI/CD Pipelines", "GitHub Actions", "Jenkins",
+        "AWS", "GCP", "Azure",
+        "Networking", "Nginx",
+        "Prometheus", "Grafana", "ELK Stack",
+        "Infrastructure as Code", "Security Best Practices"
     ],
 
     "Product Manager": [
-        "Product Strategy", "Roadmapping", "User Research", "Agile Methodologies", "Scrum",
-        "Data Analysis", "A/B Testing", "Market Research", "UI/UX Understanding",
-        "Stakeholder Management", "OKRs", "Product Analytics Tools (Mixpanel, Amplitude)",
-        "Competitive Analysis", "Prioritization Frameworks", "Communication & Leadership",
-        "Technical Knowledge (APIs, Cloud, ML basics)"
+        "Product Strategy", "Roadmapping",
+        "Prioritization Frameworks", "Agile", "Scrum",
+        "User Research", "A/B Testing",
+        "Product Analytics", "Market Research",
+        "Competitive Analysis",
+        "Stakeholder Management",
+        "Technical Understanding", "API Knowledge",
+        "KPIs", "OKRs", "Communication"
     ],
 
     "Cloud Engineer": [
-        "AWS", "GCP", "Azure", "Terraform", "CloudFormation", "Kubernetes", "Docker",
-        "Serverless (Lambda, Cloud Functions, Azure Functions)", "CI/CD",
-        "Networking & Security", "Monitoring & Logging", "Cost Optimization",
-        "IAM & Policy Management", "Cloud Architecture Design", "DevOps Practices"
+        "AWS", "GCP", "Azure",
+        "Cloud Architecture Design",
+        "IAM", "VPC", "Load Balancing",
+        "Auto Scaling", "Kubernetes",
+        "Terraform", "CloudFormation",
+        "Serverless", "Monitoring", "Logging",
+        "Cost Optimization",
+        "Backup", "Disaster Recovery"
     ],
 
     "Cybersecurity Engineer": [
-        "Network Security", "Application Security", "Penetration Testing",
-        "Vulnerability Assessment", "SIEM (Splunk, ELK)", "Firewall & IDS/IPS",
-        "Endpoint Security", "Encryption", "Identity & Access Management (IAM)",
-        "AWS/GCP/Azure Security", "Compliance Standards (ISO 27001, GDPR, SOC2)",
-        "Python/Bash for Security Automation"
+        "Network Security", "Application Security",
+        "OWASP Top 10", "Penetration Testing",
+        "Vulnerability Assessment", "Threat Modeling",
+        "SIEM", "Splunk", "ELK Stack",
+        "IAM", "Cloud Security",
+        "Encryption", "Incident Response",
+        "Security Audits",
+        "Python", "Bash", "Linux"
     ]
+
 }
+
 
 
 def display_resume_analysis_summary(resume_data):
@@ -121,18 +152,6 @@ def display_resume_analysis_summary(resume_data):
 
     ############################################################################################################################################################################################################
     
-    # #Extract skills and experience
-    # skills=resume_data.get("resume_skill",[])
-    # experience=resume_data.get("experience",[])
-
-    # # Define technical categories
-    # tech_categories={
-    #      "Programming": ["python", "java", "javascript", "c++", "ruby", "go"],
-    #     "Data Science": ["ml", "ai", "machine learning", "data science", "scikit", "numpy", "pandas"],
-    #     "Cloud & DevOps": ["aws", "azure", "gcp", "cloud", "ci/cd", "git", "docker"],
-    #     "Databases": ["sql", "mysql", "postgresql", "mongodb", "nosql"],
-    #     "Web & Mobile": ["react", "angular", "vue", "node", "android", "ios"],
-    #     "Other": []
     # }
     tech_categories = {
     "Programming": ["python", "java", "javascript", "typescript", "c", "c++", "c#", "go", "rust", "ruby", "php", "scala", "kotlin", "swift", "bash", "shell", "powershell"],
@@ -150,21 +169,6 @@ def display_resume_analysis_summary(resume_data):
     "Other": []
 }
 
-
-
-    # # Categories skills
-    # categorized_skills={cat: [] for cat in tech_categories}
-    # for skill in skills:
-    #     skill_lower=skill.lower()
-    #     found=False
-    #     for category,keywords in tech_categories.items():
-    #         if any(keyword in skill_lower for keyword in keywords):
-    #             categorized_skills[category].append(skill)
-    #             found=True
-    #             break
-    #     if not found:
-    #         categorized_skills["Other"].append(skill)
-
     # Create summary
     st.subheader("📊 Resume Analysis Summary")
 
@@ -173,41 +177,6 @@ def display_resume_analysis_summary(resume_data):
 
     with col1:
         st.markdown("""<h4 style="color: #1A237E; margin-bottom: 10px;">Strengths</h4>""",unsafe_allow_html=True)
-        # strengths=[]
-
-        # #Identify strengths based on skills and experience
-        # if any(len(categorized_skills[cat])>1 for cat in ["Programming", "Data Science", "Machine Learning & AI", "LLM / GenAI / Agentic", "Cloud & DevOps", "Databases", "Web & Mobile", "Big Data & Streaming", "MLOps & Data Engineering", "System Design & Architecture", "Testing & Quality", "Security", "Other"]) and len(categorized_skills)>=2:
-        #     strengths.append("Strong Technical skill ")
-        # if any(skill.lower() in categorized_skills["Cloud & DevOps"] for skill in skills):
-        #     strengths.append("Cloud platform experience")
-        # for category, keywords in tech_categories.items():
-        #     # Count how many skills from the resume match this category
-        #     matched_skills = [skill for skill in skills if skill.lower() in [k for k in keywords]]
-            
-        #     if len(matched_skills) >= 2:
-        #         strengths.append(f"{category} knowledge")
-
-        # # Count categories with meaningful depth
-        # non_empty_categories = [
-        #     cat for cat, vals in categorized_skills.items() if len(vals) >= 2
-        # ]
-
-        # if len(non_empty_categories) >= 2:
-        #     strengths.append("Strong technical skill set across multiple domains")
-
-        # # Cloud strength
-        # if len(categorized_skills["Cloud & DevOps"]) >= 2:
-        #     strengths.append("Cloud platform experience")
-
-        # # Category-based strengths (threshold = 2 skills)
-        # for category, keywords in tech_categories.items():
-        #     matched_skills = [
-        #         skill for skill in skills
-        #         if any(k in skill.lower() for k in keywords)
-        #     ]
-
-        #     if len(matched_skills) >= 2:
-        #         strengths.append(f"{category} knowledge")
 
         skills=resume_data.get("resume_skills",[])
         common_skills=resume_data.get("matching_skills",[])
@@ -247,18 +216,6 @@ def display_resume_analysis_summary(resume_data):
         lst= list(dict.fromkeys(ls))
 
 
-        
-     ############################################################################################################################################################################################################
-        # if strengths:
-        #     for skill in strengths:
-        #         st.markdown(
-        #             f"""<div style="background-color: #01579B; color: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; font-weight: 500;">✅{skill} ({skill_scores.get(skill,"N/A")})/10</div>""",unsafe_allow_html=True)
-        # else:
-        #     st.markdown("""<div style="background-color: #546E7A; color: white; padding: 12px; border-radius: 6px;">Not enough information to determine strengths</div>""",
-        #                 unsafe_allow_html=True
-        #                 )
-
-
     ############################################################################################################################################################################################################
        #  Display strengths with high-contrast styling
         if lst:
@@ -275,13 +232,6 @@ def display_resume_analysis_summary(resume_data):
     with col2:
         st.markdown("""<h4 style="color: #B71C1C; margin-bottom: 10px;">Areas to Improve</h4>""",unsafe_allow_html=True)
         improvements=[]
-        # #Identify improvement areas
-        # if not any("git" in skill.lower() for skill in skills):
-        #     improvements.append(" Version control experience (Git)")
-        # if not any(skill.lower() in categorized_skills["Databases"] for skill in skills):
-        #     improvements.append(" Database knowledge")
-        # if not any(skill.lower() in categorized_skills["Cloud & DevOps"] for skill in skills):
-        #     improvements.append(" Cloud platform experience")
         skills_lower = [s.lower() for s in skills]  # normalize
         improvements = []
 
@@ -296,22 +246,9 @@ def display_resume_analysis_summary(resume_data):
         # 3️⃣ Cloud & DevOps
         if not any(any(k in s for k in tech_categories["Cloud & DevOps"]) for s in skills_lower):
             improvements.append("Cloud platform experience")
-    ############################################################################################################################################################################################################
-        # missing_skills=resume_data.get("missing_skills",[])
-        # if missing_skills:
-        #     for skill in missing_skills:
-        #         st.markdown(
-        #             f"""<div style="background-color: #FA5C5C; color: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; font-weight: 500;">⚠️{skill} ({skill_scores.get(skill,"N/A")}/10)</div>""",
-        #             unsafe_allow_html=True
-        #         )
-        # else:
-        #     st.markdown(
-        #         """<div style="background-color: #2E7D32; color: white; padding: 12px; border-radius: 6px;">No obvious improvement areas identified</div>""",
-        #         unsafe_allow_html=True
-        #     )
 
 
-    ############################################################################################################################################################################################################
+############################################################################################################################################################################################################
 
         # Display improvement area with high-contrast styling
         if improvements:
@@ -374,17 +311,6 @@ def display_resume_analysis_summary(resume_data):
                     st.markdown("<strong>How to improve:</strong>",unsafe_allow_html=True)
                     for i,suggestion in enumerate(weakness['improvement_suggestions']):
                         st.markdown(f'<div class="solution-detail">{i+1}.{suggestion}</div>',unsafe_allow_html=True)
-
-                # # Display example if available
-                # if 'example' in weakness and weakness['example']:
-                #     st.markdown("<strong>Example addition:</strong>",unsafe_allow_html=True)
-                #     st.markdown(f'<div class="example-detail">{weakness["example"]},</div>',unsafe_allow_html=True)
-
-
-
-########################################################################################################################################################################################################
-
-
 
 ########################################################################################################################################################################################################
 def create_score_pie_chart(score):
@@ -471,20 +397,6 @@ def clean_and_organize_experience(experience_items):
         "Professional Experience": []
     }
 
-    # # Simple keyword-based categorization
-    # for item in experience_items:
-    #     item_lower=item.lower()
-    #     if any(kw in item_lower for kw in ["program", "develop", "code", "software","python","c++"]):
-    #         categories["Programming Experience"].append(item)
-    #     elif any(kw in item_lower for kw in ["machine", "learning", "ai", "neural", "model"]):
-    #         categories["Machine Learning & AI"].append(item)
-    #     elif any(kw in item_lower for kw in ["cloud", "aws", "azure", "gcp"]):
-    #         categories["Cloud Computing"].append(item)
-    #     elif any(kw in item_lower for kw in ["data", "analytics", "analysis", "statistics"]):
-    #         categories["Data Analysis"].append(item)
-    #     else:
-    #         categories["Other"].append(item)
-    # return categories
 
 
     # Simple keyword-based categorization
@@ -707,7 +619,6 @@ def display_formatted_analysis_new(resume_overall_analysis: dict):
             )
 
 ########################################################################################################################################################################
-
             
 def display_formatted_analysis(analysis):
     """Format and display the resume analysis in a structured way with improved visibility.
@@ -842,187 +753,9 @@ def display_matching_skills(skills,job_description):
         missing_html+="</div>"
         st.markdown(missing_html,unsafe_allow_html=True)
 
-# def apply_styling():
-#     """Apply custom CSS styling to the Streamlit app."""
-#     st.markdown(f"""
-#     <style>
-#                 /* Global font styling */
-#                 * {{
-#                     font-family: 'Segoe UI','Roboto','Arial',sans-serif;
-#                 }}
 
-#                 /* Main header styling*/
-#                 h1,h2, .main-header {{
-#                     color: white !important;
-#                     background-color: {COLORS['primary']} !important;
-#                     padding: 20px !important;
-#                     border-radius: 8px !important;
-#                     margin-bottom: 20px !important;
-#                     font-weight: bold !important;
-#                     box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
-#                 }}
+########################################################################################################################################################################
 
-#                 /* Blue header panels styling*/
-#                 div[style*="background-color: {COLORS['primary']}"],
-#                 div[style*="background-color: rgb(28, 78, 128)"],
-#                 [data-testid="stForm"] h3,
-#                 .blue-header {{
-#                     color: white !important;
-#                     font-size: 1.2rem !important;
-#                     font-weight: bold !important;
-#                     text-shadow: 1px 1px 2px rgba(0,0,0,0.3) !important;
-#                     padding: 15px !important;
-#                     border-radius: 6px !important;
-#                     margin-bottom: 15px !important;
-#                     background-color: {COLORS['primary']} !important;
-#                 }}
-
-#                 /* Fix for text in blue panels */
-#                 div[style*="background-color: {COLORS['primary']}"] p,
-#                 div[style*="background-color: {COLORS['primary']}"] span,
-#                 div[style*="background-color: {COLORS['primary']}"] h3,
-#                 div[style*="background-color: {COLORS['primary']}"] h4,
-#                 div[style*="background-color: {COLORS['primary']}"] div {{
-#                     color: white !important;
-#                     font-weight: bold !important;
-#                 }}
-                
-#                 /* All form inputs styling */
-#                 input, select, textarea, 
-#                 [data-baseweb="input"], 
-#                 [data-baseweb="select"], 
-#                 [data-baseweb="textarea"] {{
-#                     color: black !important;
-#                     background-color: white !important;
-#                     border: 1px solid #cccccc !important;
-#                     border-radius: 4px !important;
-#                     padding: 8px !important;
-#                 }}
-                
-#                 /* Buttons styled */
-#                 .stButton>button,
-#                 button[kind="primary"] {{
-#                     background-color: {COLORS["accent3"]} !important;
-#                     color: white !important;
-#                     font-weight: bold !important;
-#                     border-radius: 4px !important;
-#                     padding: 0.5rem 1rem !important;
-#                     border: none !important;
-#                     box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
-#                     transition: all 0.3s ease !important;
-#                     width: 100% !important;
-#                     font-size: 16px !important;
-#                     height: auto !important;
-#                     min-height: 45px !important;
-#                 }}
-#                 .stButton>button:hover,
-#                 button[kind="primary"]:hover {{
-#                     background-color: #E67E22 !important;
-#                     box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
-#                     transform: translateY(-1px) !important;
-#                 }}
-                
-#                 /* Table styling */
-#                 table, .dataframe, [data-testid="stTable"] {{
-#                     width: 100% !important;
-#                     border-collapse: collapse !important;
-#                     margin-bottom: 20px !important;
-#                     border-radius: 4px !important;
-#                     overflow: hidden !important;
-#                     box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
-#                 }}
-                
-#                 /* Table headers */
-#                 th, thead tr th {{
-#                     background-color: #222222 !important;
-#                     color: white !important;
-#                     font-weight: bold !important;
-#                     padding: 12px 8px !important;
-#                     text-align: left !important;
-#                     border: none !important;
-#                 }}
-                
-#                 /* Table cells */
-#                 td, tbody tr td {{
-#                     padding: 12px 8px !important;
-#                     border-bottom: 1px solid #EEEEEE !important;
-#                     background-color: white !important;
-#                     color: black !important;
-#                 }}
-
-#                 /* Alternate row styling */
-#                 tbody tr:nth-child(even) td {{
-#                     background-color: #f9f9f9 !important;
-#                 }}
-                
-#                 /* Tab navigation */
-#                 div[data-baseweb="tab-list"] {{
-#                     gap: 0 !important;
-#                     background-color: {COLORS["background"]} !important;
-#                     padding: 10px !important;
-#                     border-radius: 12px !important;
-#                     display: flex !important;
-#                     justify-content: space-between !important;
-#                     width: 100% !important;
-#                     margin-bottom: 20px !important;
-#                     box-shadow: 0 2px 12px rgba(0,0,0,0.1) !important;
-#                 }}
-                
-#                 div[data-baseweb="tab-list"] button {{
-#                     flex: 1 !important;
-#                     text-align: center !important;
-#                     margin: 0 5px !important;
-#                     height: 60px !important;
-#                     font-size: 16px !important;
-#                     background-color: rgba(255, 255, 255, 0.7) !important;
-#                     color: {COLORS["primary"]} !important;
-#                     border-radius: 8px !important;
-#                     border: 1px solid rgba(0,0,0,0.05) !important;
-#                     transition: all 0.3s ease !important;
-#                 }}
-
-#                 div[data-baseweb="tab-list"] button[aria-selected="true"] {{
-#                     background-color: {COLORS["primary"]} !important;
-#                     color: white !important;
-#                     border-bottom: 3px solid {COLORS["accent3"]} !important;
-#                     box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
-#                     transform: translateY(-2px) !important;
-#                 }}
-                
-#                 /* Background colors */
-#                 body {{
-#                     background-color: #FFFFFF !important;
-#                 }}
-                
-#                 .stApp {{
-#                     background-color: #FFFFFF !important;
-#                 }}
-                
-#                 /* Headers inside panels */
-#                 .stExpander h3, .stForm h3 {{
-#                     color: {COLORS["primary"]} !important;
-#                     font-weight: bold !important;
-#                 }}
-                
-#                 /* Expandable sections */
-#                 .stExpander {{
-#                     border: 1px solid #eee !important;
-#                     border-radius: 8px !important;
-#                     overflow: hidden !important;
-#                 }}
-                
-#                 .stExpander details {{
-#                     padding: 0 !important;
-#                 }}
-                
-#                 .stExpander summary {{
-#                     padding: 15px !important;
-#                     background-color: #f5f7fa !important;
-#                     font-weight: bold !important;
-#                     color: {COLORS["primary"]} !important;
-#                 }}
-#             </style>
-#             """,unsafe_allow_html=True)
 
 # Custom CSS to enhance teh UI with a professional balanced style
 def apply_styling():
