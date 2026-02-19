@@ -405,7 +405,7 @@ TIER 3 → Platform-specific fallback  Safe mock listings (demo mode) — clearl
 
 > Watch the AI avatar interviewer in action — real-time voice, video, transcription, and post-interview evaluation.
 
-<video src="[https://github.com/Rishabh23-Codes/RecruitmentAgent/raw/main/DEMO/demo_video.mp4](https://github.com/user-attachments/assets/198f8dc9-074b-4d21-93e7-ecc1f015e3ef)" controls width="900"></video>
+<video src="https://github.com/user-attachments/assets/198f8dc9-074b-4d21-93e7-ecc1f015e3ef" controls width="900"></video>
 
 
 > **Can't play inline?** [📥 Download Interview Demo Video](./DEMO/interview_demo.mp4)
