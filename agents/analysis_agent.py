@@ -736,7 +736,7 @@ class ResumeAnalysisAgent:
         if not self.rag_vectorstore or not self.resume_text:
             return "Please analyze a resume first"
         
-        retriever = self.rag_vectorstore.as_retriever(search_kwargs={"k": 3})
+        retriever = self.rag_vectorstore.as_retriever(search_kwargs={"k": 4})
         # llm = ChatGroq(
         #     model='llama-3.1-8b-instant',
         #     api_key=GROQ_API_KEY
